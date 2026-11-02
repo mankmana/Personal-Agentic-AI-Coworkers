@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0e13" />
+    <title>DailyTechUpgradeAgent — Career cockpit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-lockup">
+          <div class="brand-mark"><span></span><span></span><span></span></div>
+          <div><p class="brand-name">co.workers</p><p class="brand-caption">personal career OS</p></div>
+        </div>
+
+        <div class="sidebar-section">
+          <p class="eyebrow sidebar-label">Your coworkers</p>
+          <button class="agent-card active" type="button" data-agent="daily"><span class="agent-avatar teal">DT</span><span class="agent-copy"><strong>DailyTechUpgrade</strong><small>active · scanning now</small></span><span class="live-dot"></span></button>
+          <button class="agent-card muted-agent" type="button" data-agent="coach"><span class="agent-avatar violet">NC</span><span class="agent-copy"><strong>NextLevel Coach</strong><small>coming next</small></span><span class="lock-icon">✦</span></button>
+        </div>
+
+        <nav class="main-nav" aria-label="Main navigation">
+          <p class="eyebrow sidebar-label">Workspace</p>
+          <button class="nav-item active" type="button" data-view="overview"><span class="nav-icon">◒</span> Overview</button>
+          <button class="nav-item" type="button" data-view="workflow"><span class="nav-icon">⌁</span> Agent workflow</button>
+          <button class="nav-item" type="button" data-view="radar"><span class="nav-icon">◎</span> Technical radar <span class="nav-count">3</span></button>
+          <button class="nav-item" type="button" data-view="lab"><span class="nav-icon">△</span> Career lab</button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="profile-row"><div class="profile-avatar">MM</div><div><strong>Manali Mankad</strong><small>software support → SRE</small></div><span class="more">•••</span></div>
+          <div class="upgrade-card"><span class="sparkle">✦</span><div><strong>Build your edge</strong><small>Connect a source to go deeper.</small></div><span class="arrow">↗</span></div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumb"><span class="crumb-muted">Workspace</span><span>/</span><span id="breadcrumb-current">Overview</span></div>
+          <div class="top-actions"><button class="icon-button" type="button" aria-label="Search">⌕</button><button class="icon-button notification-button" type="button" aria-label="Notifications">♢<span></span></button><button class="date-chip" type="button"><span class="calendar-icon">□</span> Sunday, Nov 1 <span class="chevron">⌄</span></button></div>
+        </header>
+
+        <div class="page-wrap">
+          <section class="page-heading">
+            <div><div class="heading-kicker"><span class="status-dot"></span> DAILYTECHUPGRADEAGENT <span class="slash">/</span> MORNING RUN</div><h1 id="page-title">Your technical edge,<br /><em>one day sharper.</em></h1><p class="page-subtitle">A focused read on the systems, signals, and skills that move your career forward.</p></div>
+            <button id="run-button" class="primary-button" type="button"><span class="button-pulse"></span> Run daily scan <span class="button-arrow">↗</span></button>
+          </section>
+
+          <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+          <section class="metrics-grid" aria-label="Readiness metrics">
+            <article class="metric-card readiness-card"><div class="metric-top"><span class="metric-label">Career readiness</span><span class="metric-menu">•••</span></div><div class="metric-value-row"><strong>72</strong><span>/100</span><span class="trend up">↗ 8%</span></div><div class="progress-track"><span style="width:72%"></span></div><p class="metric-note">You’re <b>28 points</b> from your SRE target.</p></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Learning momentum</span><span class="metric-menu">•••</span></div><div class="metric-value-row"><strong>08</strong><span>day streak</span><span class="trend up">↗ 2 days</span></div><div class="week-dots" aria-label="8 day learning streak"><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="today"></span><span></span><span></span><span></span><span></span></div><p class="metric-note">Keep the loop alive with <b>one challenge</b> today.</p></article>
+            <article class="metric-card opportunity-card"><div class="metric-top"><span class="metric-label">Relevant opportunities</span><span class="metric-menu">•••</span></div><div class="metric-value-row"><strong>12</strong><span>new this week</span><span class="trend neutral">4 strong fit</span></div><div class="opportunity-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p class="metric-note">Most aligned: <b>Platform Engineer</b> at Vercel.</p></article>
+          </section>
+
+          <div class="view-panel active" data-panel="overview">
+            <section class="dashboard-grid">
+              <article class="surface workflow-surface"><div class="section-heading"><div><p class="eyebrow">The learning loop</p><h2>Agent workflow</h2></div><button class="text-button" data-view-target="workflow" type="button">View details <span>↗</span></button></div><div class="workflow-line"><div class="workflow-node complete"><span class="node-icon">⌁</span><div><strong>Scout</strong><small>12 sources found</small></div><b>✓</b></div><div class="connector complete"></div><div class="workflow-node complete"><span class="node-icon">✦</span><div><strong>Synthesize</strong><small>3 signals ranked</small></div><b>✓</b></div><div class="connector current"></div><div class="workflow-node current"><span class="node-icon">△</span><div><strong>Challenge</strong><small>1 prompt waiting</small></div><b>now</b></div><div class="connector"></div><div class="workflow-node"><span class="node-icon">↗</span><div><strong>Coach</strong><small>plan updates after</small></div></div></div><div class="workflow-footer"><span><i class="mini-live"></i> Last run 12 min ago</span><span>Next scheduled run <b>tomorrow · 07:30</b></span></div></article>
+              <article class="surface focus-surface"><div class="section-heading"><div><p class="eyebrow">Today’s focus</p><h2>Close the gap</h2></div><span class="focus-badge">SRE / L2</span></div><div class="focus-body"><div class="focus-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="ring-bg" cx="60" cy="60" r="49"></circle><circle class="ring-fill" cx="60" cy="60" r="49"></circle></svg><span><strong>3</strong><small>gaps</small></span></div><div class="focus-list"><div><span class="check empty"></span><p><b>Incident command</b><small>Priority · high</small></p></div><div><span class="check"></span><p><b>Terraform modules</b><small>In progress · 65%</small></p></div><div><span class="check empty"></span><p><b>Capacity planning</b><small>Priority · medium</small></p></div></div></div><button class="outline-button full-width" data-view-target="lab" type="button">Open readiness lab <span>↗</span></button></article>
+            </section>
+
+            <section class="content-grid">
+              <article class="surface brief-surface"><div class="section-heading brief-heading"><div><p class="eyebrow">Curated for you · Nov 1, 2026</p><h2>Daily technical brief</h2></div><span class="source-count">12 sources <span>↗</span></span></div><div class="article-list">
+                <button class="article-row selected" type="button" data-article="0"><span class="article-number">01</span><div class="article-content"><div class="article-meta"><span class="tag tag-teal">FRONTIER LABS</span><span>7 min read</span></div><h3>Why durable execution is becoming the new reliability primitive</h3><p>Temporal’s approach to long-running workflows offers a useful lens for building recoverable agentic systems.</p><div class="article-footer"><span>Temporal Engineering</span><span>↗</span></div></div><span class="article-chevron">›</span></button>
+                <button class="article-row" type="button" data-article="1"><span class="article-number">02</span><div class="article-content"><div class="article-meta"><span class="tag tag-blue">GOOGLE CLOUD</span><span>5 min read</span></div><h3>Operating Kubernetes with a platform team mindset</h3><p>Google’s latest SRE guidance reframes platform work around paved roads, signals, and developer trust.</p><div class="article-footer"><span>Google Cloud Blog</span><span>↗</span></div></div><span class="article-chevron">›</span></button>
+                <button class="article-row" type="button" data-article="2"><span class="article-number">03</span><div class="article-content"><div class="article-meta"><span class="tag tag-purple">OPENAI</span><span>9 min read</span></div><h3>Tracing the path from model call to production incident</h3><p>A practical look at observability patterns for AI systems: traces, evals, cost, and the humans in the loop.</p><div class="article-footer"><span>OpenAI Engineering</span><span>↗</span></div></div><span class="article-chevron">›</span></button>
+              </div><div class="brief-bottom"><span><i class="sparkle small">✦</i> Personalized from your SRE roadmap</span><button class="text-button" data-view-target="radar" type="button">Explore all signals <span>↗</span></button></div></article>
+              <article class="surface insight-surface"><div class="section-heading"><div><p class="eyebrow">Agent’s synthesis</p><h2>What this means for you</h2></div><span class="ai-orb">✦</span></div><div class="insight-quote"><span class="quote-mark">“</span><p>Reliability is shifting from keeping services alive to making systems <em>recoverable, explainable, and safe to change.</em></p></div><div class="insight-divider"></div><div class="insight-action"><span class="action-icon">△</span><div><span class="eyebrow">Recommended action</span><p>Write a 10-minute incident review for a failure you’ve seen. Focus on detection, blast radius, and the missing guardrail.</p></div></div><button class="dark-button full-width" id="challenge-button" type="button">Start today’s challenge <span>↗</span></button></article>
+            </section>
+          </div>
+
+          <div class="view-panel" data-panel="workflow"><section class="surface detail-surface"><div class="detail-header"><div><p class="eyebrow">RUN ID · 7F2A-11</p><h2>DailyTechUpgradeAgent workflow</h2><p class="detail-intro">Every morning, the agent turns a noisy technical landscape into one focused improvement loop.</p></div><span class="run-status"><i></i> completed 12m ago</span></div><div class="large-workflow">
+            <div class="large-step complete"><div class="step-index">01</div><div class="step-icon">⌁</div><div><p class="eyebrow">Input layer</p><h3>Scout the landscape</h3><p>Collect official engineering posts, research, release notes, job descriptions, and signals from the companies and labs you care about.</p><div class="step-tags"><span>12 sources</span><span>4 domains</span></div></div><strong>✓</strong></div>
+            <div class="large-step complete"><div class="step-index">02</div><div class="step-icon">✦</div><div><p class="eyebrow">Reasoning layer</p><h3>Synthesize what matters</h3><p>Rank signals against your SRE / DevOps target, summarize the source, and attach a practical “why this matters” insight.</p><div class="step-tags"><span>3 ranked signals</span><span>72% relevance</span></div></div><strong>✓</strong></div>
+            <div class="large-step current"><div class="step-index">03</div><div class="step-icon">△</div><div><p class="eyebrow">Assessment layer</p><h3>Challenge your understanding</h3><p>Generate a technical question or coding exercise from today’s brief, then evaluate your response for depth, accuracy, and systems thinking.</p><div class="step-tags"><span>1 prompt ready</span><span>awaiting you</span></div></div><span class="step-cta">Next</span></div>
+            <div class="large-step"><div class="step-index">04</div><div class="step-icon">↗</div><div><p class="eyebrow">Action layer</p><h3>Coach the next move</h3><p>Convert the assessment into a small plan: resource, practice task, and a measurable checkpoint toward your next opportunity.</p><div class="step-tags"><span>plan updates after challenge</span></div></div></div>
+          </div></section></div>
+
+          <div class="view-panel" data-panel="radar"><section class="surface radar-surface"><div class="detail-header"><div><p class="eyebrow">SIGNAL MONITOR · 4 DOMAINS</p><h2>Technical radar</h2><p class="detail-intro">The developments most likely to change how SRE and DevOps teams build, operate, and support software.</p></div><div class="radar-filter"><button class="filter active" type="button">All</button><button class="filter" type="button">SRE</button><button class="filter" type="button">DevOps</button><button class="filter" type="button">AI infra</button></div></div><div class="radar-grid"><article class="radar-card"><div class="radar-top"><span class="tag tag-teal">FRONTIER LABS</span><span class="radar-score">94 match</span></div><h3>Durable, observable agent workflows</h3><p>Workflow engines and eval loops are converging. Reliability engineers can own the guardrails that make agents safe to operate.</p><div class="radar-bottom"><span>Signal strength <b>high</b></span><span>3 sources ↗</span></div></article><article class="radar-card"><div class="radar-top"><span class="tag tag-blue">GOOGLE</span><span class="radar-score">89 match</span></div><h3>Platform engineering as product</h3><p>Internal developer platforms are being measured by adoption and cognitive load, not by the number of tools they expose.</p><div class="radar-bottom"><span>Signal strength <b>high</b></span><span>5 sources ↗</span></div></article><article class="radar-card"><div class="radar-top"><span class="tag tag-purple">OPENAI · ANTHROPIC</span><span class="radar-score">86 match</span></div><h3>Observability for model-shaped systems</h3><p>Traces now need to connect model calls, tool use, cost, policy decisions, and human escalation into one incident story.</p><div class="radar-bottom"><span>Signal strength <b>rising</b></span><span>4 sources ↗</span></div></article><article class="radar-card"><div class="radar-top"><span class="tag tag-orange">AWS · META</span><span class="radar-score">79 match</span></div><h3>FinOps meets capacity planning</h3><p>Inference and platform costs are pushing teams to treat capacity, performance, and spend as one operational control loop.</p><div class="radar-bottom"><span>Signal strength <b>watch</b></span><span>3 sources ↗</span></div></article></div></section></div>
+
+          <div class="view-panel" data-panel="lab"><section class="lab-grid"><article class="surface assessment-surface"><div class="section-heading"><div><p class="eyebrow">READINESS CHECK · 01 / 03</p><h2>Incident command</h2></div><span class="question-progress">1 of 3</span></div><p class="question-copy">A checkout service is returning intermittent 502s. Error rate is 3%, latency is climbing, and the last deploy was 20 minutes ago. Walk through your first 10 minutes.</p><div class="answer-box" contenteditable="true" role="textbox" aria-label="Your answer"><span>Start typing your response…</span></div><div class="assessment-footer"><span>Evaluated for <b>prioritization, diagnosis, and communication</b></span><button class="dark-button" id="submit-answer" type="button">Submit answer <span>↗</span></button></div></article><aside class="surface report-surface"><div class="section-heading"><div><p class="eyebrow">LIVE READINESS REPORT</p><h2>Your edge</h2></div><span class="report-icon">✦</span></div><div class="report-score"><strong>72</strong><span>/100</span><div><b>On track</b><small>updated today</small></div></div><div class="report-bars"><div><span><b>Systems thinking</b><em>82%</em></span><i><b style="width:82%"></b></i></div><div><span><b>Operational depth</b><em>68%</em></span><i><b style="width:68%"></b></i></div><div><span><b>Communication</b><em>76%</em></span><i><b style="width:76%"></b></i></div></div><div class="report-next"><p class="eyebrow">Next best action</p><p>Practice a blameless incident narrative with a clear “now / next / later” structure.</p></div></aside></section></div>
+        </div>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

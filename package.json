@@ -1,0 +1,10 @@
+{
+  "name": "personal-agentic-ai-coworkers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A front-end prototype for personal agentic AI career coworkers.",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "start": "python3 -m http.server 4173"
+  }
+}
