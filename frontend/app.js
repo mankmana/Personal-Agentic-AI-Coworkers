@@ -134,6 +134,13 @@ document.querySelectorAll(".filter").forEach((filter) => {
   filter.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
     filter.classList.add("active");
+    const selectedDomain = filter.dataset.filter || "all";
+    document.querySelectorAll(".radar-card").forEach((card) => {
+      const domains = (card.dataset.domains || "all").split(" ");
+      const visible = selectedDomain === "all" || domains.includes(selectedDomain);
+      card.classList.toggle("is-hidden", !visible);
+      card.setAttribute("aria-hidden", String(!visible));
+    });
     showToast(`${filter.textContent} signals are now in view.`);
   });
 });
