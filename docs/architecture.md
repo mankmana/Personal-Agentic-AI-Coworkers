@@ -22,7 +22,7 @@ backend/server.py
 
 ## Content lanes
 
-- `general_ai_development`: AI engineering, agents, RAG, evaluation, model operations, and frontier-lab developments.
+- `general_ai_development`: AI engineering, agents, RAG, evaluation, model operations, research, developer tooling, and frontier-lab/company developments across OpenAI, Google, Apple, AWS, Netflix, Anthropic, and Meta sources.
 - `sre_devops_support`: SRE, DevOps, cloud infrastructure, incident response, platform engineering, support operations, and reliability practice.
 
 Both lanes use the same pipeline, but relevance and challenge generation are personalized against the profile in `backend/profile.json`.
@@ -33,7 +33,7 @@ Both lanes use the same pipeline, but relevance and challenge generation are per
 
 ## Source grounding
 
-The backend does not serve seeded article cards. A successful RSS/Atom ingestion creates `source_type: rss_atom`, retains the feed item's `reference` URL, fetches the linked article page when possible, and records `grounding_basis` as `article_page` or `feed_entry`. Every article returned by the API has a source URL and is marked grounded.
+The backend does not serve seeded article cards. A successful RSS/Atom ingestion creates `source_type: rss_atom`; official Anthropic and Meta article-index ingestion creates `source_type: html_index`. Both retain the source `reference` URL, fetch linked article-page text when possible, and record `grounding_basis` as `article_page` or `feed_entry`. Every article returned by the API has a source URL and is marked grounded.
 
 ## Daily refresh
 

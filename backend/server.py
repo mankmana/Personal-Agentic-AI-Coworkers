@@ -119,8 +119,10 @@ def model_text(instructions: str, prompt: str) -> str | None:
         return None
 
 
-def summarize_article(title: str, source: str, body: str) -> dict:
-    prompt = f"""Summarize this technical article for a DevOps/SRE engineer who is also learning AI development.
+def summarize_article(title: str, source: str, body: str, lane: str = "general_ai_development") -> dict:
+    audience = "AI/software engineering and research readers" if lane == "general_ai_development" else "an SRE, DevOps, cloud, or software support engineer"
+    prompt = f"""Summarize this technical article for {audience}.
+Do not force an SRE or DevOps angle onto general AI, research, or product-development articles. Explain the actual development first, then its practical relevance.
 Return valid JSON with keys: summary (2-3 sentences), takeaways (3 short strings), why_it_matters (1 sentence).
 Title: {title}
 Source: {source}
@@ -138,20 +140,36 @@ Article text: {body[:12000]}"""
     return {
         "summary": fallback[:620],
         "takeaways": ["Read the source for implementation details.", "Connect the idea to an operational failure mode.", "Turn one insight into a small practice task."],
-        "why_it_matters": "Use the idea as a prompt for a practical SRE, DevOps, or AI systems exercise.",
+        "why_it_matters": "Use the idea as a prompt for a practical software, AI, research, or operations exercise.",
         "summary_mode": "extractive_fallback",
     }
 
 
 def feed_urls() -> dict[str, list[str]]:
     defaults = {
-        "general_ai_development": ["https://openai.com/news/rss.xml", "https://blog.google/technology/ai/rss/"],
-        "sre_devops_support": ["https://aws.amazon.com/blogs/devops/feed/", "https://cloud.google.com/blog/products/management-tools/rss"],
+        "general_ai_development": [
+            "https://openai.com/news/rss.xml",
+            "https://blog.google/technology/ai/rss/",
+            "https://research.google/blog/rss/",
+            "https://machinelearning.apple.com/rss.xml",
+            "https://aws.amazon.com/blogs/machine-learning/feed/",
+            "https://netflixtechblog.com/feed",
+        ],
+        "sre_devops_support": [
+            "https://aws.amazon.com/blogs/devops/feed/",
+            "https://cloud.google.com/blog/products/management-tools/rss",
+        ],
     }
     for lane, env_name in [("general_ai_development", "GENERAL_FEEDS"), ("sre_devops_support", "DOMAIN_FEEDS")]:
         if os.getenv(env_name):
             defaults[lane] = [url.strip() for url in os.getenv(env_name, "").split(",") if url.strip()]
     return defaults
+
+
+def web_index_urls() -> dict[str, list[str]]:
+    return {
+        "general_ai_development": ["https://www.anthropic.com/news", "https://ai.meta.com/blog"],
+    }
 
 
 def element_text(element: ET.Element, names: tuple[str, ...]) -> str:
@@ -195,6 +213,78 @@ def fetch_article_text(url: str) -> str:
     return text[:16000]
 
 
+class ArticleLinkParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.current_href = ""
+        self.current_text: list[str] = []
+        self.links: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a" or self.current_href:
+            return
+        attributes = dict(attrs)
+        self.current_href = attributes.get("href") or ""
+        self.current_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self.current_href:
+            self.current_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "a" and self.current_href:
+            title = clean_text(" ".join(self.current_text))
+            if title and self.current_href:
+                self.links.append((title, self.current_href))
+            self.current_href = ""
+            self.current_text = []
+
+
+def fetch_web_index(url: str, lane: str) -> list[dict]:
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 DailyTechUpgradeAgent/0.1"})
+    with urllib.request.urlopen(request, timeout=12) as response:
+        raw = response.read(1_000_000).decode("utf-8", errors="replace")
+    parser = ArticleLinkParser()
+    parser.feed(raw)
+    host = urllib.parse.urlparse(url).netloc
+    candidates = []
+    seen = set()
+    for title, href in parser.links:
+        link = urllib.parse.urljoin(url, href).split("#", 1)[0]
+        path = urllib.parse.urlparse(link).path.rstrip("/")
+        if host.endswith("anthropic.com"):
+            valid = path.startswith("/news/") and path.count("/") >= 2 and path not in {"/news/announcements", "/news/features"}
+        elif host.endswith("meta.com"):
+            valid = path.startswith("/blog/") and path.count("/") >= 2
+        else:
+            valid = False
+        if valid and link not in seen and len(title) >= 12:
+            seen.add(link)
+            candidates.append({"title": title, "link": link})
+    page_texts = {}
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(fetch_article_text, item["link"]): item["link"] for item in candidates[:12]}
+        for future in as_completed(futures):
+            link = futures[future]
+            try:
+                page_text = future.result()
+                page_texts[link] = page_text if len(page_text) >= 240 else ""
+            except (OSError, ValueError, urllib.error.URLError):
+                page_texts[link] = ""
+    source = urllib.parse.urlparse(url).netloc.replace("www.", "")
+    items = []
+    for candidate in candidates[:12]:
+        link = candidate["link"]
+        article_text = page_texts.get(link, "")
+        if not article_text:
+            continue
+        title = candidate["title"]
+        article_id = hashlib.sha1(f"{title}{link}".encode()).hexdigest()[:14]
+        summary = summarize_article(title, source, article_text, lane)
+        items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], "source_type": "html_index", "grounded": True, "grounding_basis": "article_page", **summary})
+    return items[:8]
+
+
 def fetch_feed(url: str, lane: str) -> list[dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "DailyTechUpgradeAgent/0.1"})
     with urllib.request.urlopen(request, timeout=12) as response:
@@ -234,7 +324,7 @@ def fetch_feed(url: str, lane: str) -> list[dict]:
             continue
         article_id = hashlib.sha1(f"{title}{link}".encode()).hexdigest()[:14]
         grounding_basis = "article_page" if page_texts.get(link) else "feed_entry"
-        summary = summarize_article(title, source, article_text)
+        summary = summarize_article(title, source, article_text, lane)
         items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], "source_type": "rss_atom", "grounded": True, "grounding_basis": grounding_basis, **summary})
     return items[:8]
 
@@ -253,7 +343,20 @@ def ingest_sources(state: dict, lanes: list[str]) -> dict:
                         state["articles"].insert(0, article)
                         existing_ids.add(article["id"])
                         fetched += 1
-                    elif existing_articles[article["id"]].get("source_type") == "rss_atom":
+                    elif existing_articles[article["id"]].get("source_type") in {"rss_atom", "html_index"}:
+                        index = next(index for index, current in enumerate(state["articles"]) if current["id"] == article["id"])
+                        state["articles"][index] = article
+                        refreshed += 1
+            except Exception as error:
+                failures.append({"url": url, "error": str(error)})
+        for url in web_index_urls().get(lane, []):
+            try:
+                for article in fetch_web_index(url, lane):
+                    if article["id"] not in existing_ids:
+                        state["articles"].insert(0, article)
+                        existing_ids.add(article["id"])
+                        fetched += 1
+                    elif existing_articles[article["id"]].get("source_type") in {"rss_atom", "html_index"}:
                         index = next(index for index, current in enumerate(state["articles"]) if current["id"] == article["id"])
                         state["articles"][index] = article
                         refreshed += 1
@@ -422,7 +525,15 @@ def dashboard() -> dict:
     with STATE_LOCK:
         state = load_state()
     articles = state["articles"]
-    return {"profile": read_profile(), "readiness": readiness_report(state), "learning": learning_stats(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"source_grounded_articles": sum(1 for article in articles if article.get("grounded")), "article_page_summaries": sum(1 for article in articles if article.get("grounding_basis") == "article_page"), "feed_entry_summaries": sum(1 for article in articles if article.get("grounding_basis") == "feed_entry"), "note": "Every article returned by this API has a source URL and is summarized from fetched source text."}, "scheduler": {"enabled": True, "interval_hours": SCAN_INTERVAL_HOURS}}
+    general_articles = [article for article in articles if article["lane"] == "general_ai_development"]
+    domain_articles = [article for article in articles if article["lane"] == "sre_devops_support"]
+    mixed_articles = []
+    for index in range(max(len(general_articles), len(domain_articles))):
+        if index < len(general_articles):
+            mixed_articles.append(general_articles[index])
+        if index < len(domain_articles):
+            mixed_articles.append(domain_articles[index])
+    return {"profile": read_profile(), "readiness": readiness_report(state), "learning": learning_stats(state), "articles": mixed_articles[:6], "general_articles": general_articles[:3], "domain_articles": domain_articles[:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"source_grounded_articles": sum(1 for article in articles if article.get("grounded")), "article_page_summaries": sum(1 for article in articles if article.get("grounding_basis") == "article_page"), "feed_entry_summaries": sum(1 for article in articles if article.get("grounding_basis") == "feed_entry"), "note": "Every article returned by this API has a source URL and is summarized from fetched source text."}, "scheduler": {"enabled": True, "interval_hours": SCAN_INTERVAL_HOURS}}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -467,7 +578,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(readiness_report(load_state()))
         if parsed.path == "/api/articles":
             lane = urllib.parse.parse_qs(parsed.query).get("lane", ["all"])[0]
-            articles = dashboard()["articles"] if lane == "all" else [a for a in dashboard()["articles"] if a["lane"] == lane]
+            with STATE_LOCK:
+                stored_articles = load_state()["articles"]
+            articles = stored_articles if lane == "all" else [article for article in stored_articles if article["lane"] == lane]
             return self.send_json({"articles": articles, "lane": lane})
         if parsed.path == "/api/learning":
             with STATE_LOCK:
