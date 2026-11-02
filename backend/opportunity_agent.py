@@ -28,12 +28,20 @@ TARGET_ROLES = [
     "DevOps Engineer Intern",
     "Production Support Engineer Intern",
 ]
-INTERNSHIP_TERMS = ("intern", "internship", "co-op", "co op", "student", "new grad")
+# These are public employer job-board endpoints, not authenticated candidate
+# accounts. They are a starting set and can be replaced/extended with JOB_FEEDS.
+DEFAULT_PUBLIC_ATS_SOURCES = [
+    "lever://palantir",
+    "lever://anavationllc",
+    "lever://shopback-2",
+    "lever://csit",
+]
+INTERNSHIP_TERMS = ("intern", "internship", "co-op", "co op")
 ROLE_TERMS = {
     "Production Engineer Intern": ("production engineer", "production engineering"),
     "Customer Solutions Engineer Intern": ("customer solutions", "solutions engineer", "customer engineer"),
     "Technical Support Engineer Intern": ("technical support", "support engineer", "support engineering"),
-    "DevOps Engineer Intern": ("devops", "developer operations", "platform engineer", "infrastructure engineer"),
+    "DevOps Engineer Intern": ("devops", "developer operations", "platform engineer", "infrastructure engineer", "cloud engineer", "cloud computing"),
     "Production Support Engineer Intern": ("production support", "application support", "site reliability", "sre"),
 }
 PROFILE_TERMS = ("python", "java", "shell", "aws", "cloudwatch", "linux", "kubernetes", "terraform", "ci/cd", "api", "sql", "incident")
@@ -47,6 +55,11 @@ def clean_text(value: str) -> str:
     value = html.unescape(value or "")
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
+
+
+def contains_term(text: str, term: str) -> bool:
+    """Match words instead of substrings such as intern inside internal."""
+    return bool(re.search(rf"(?<![a-z0-9]){re.escape(term.lower())}(?![a-z0-9])", text.lower()))
 
 
 def default_state() -> dict:
@@ -72,7 +85,10 @@ def save_state(path: Path, state: dict) -> None:
 
 def configured_feeds() -> list[str]:
     raw = os.getenv("JOB_FEEDS", "")
-    return [url.strip() for url in raw.split(",") if url.strip()]
+    configured = [url.strip() for url in raw.split(",") if url.strip()]
+    if configured:
+        return configured
+    return list(DEFAULT_PUBLIC_ATS_SOURCES)
 
 
 def element_text(element: ET.Element, names: tuple[str, ...]) -> str:
@@ -88,28 +104,51 @@ def fetch_url(url: str, timeout: int = 12) -> str:
         return response.read(500_000).decode("utf-8", errors="replace")
 
 
+def fetch_json(url: str, timeout: int = 12) -> dict | list:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "NextLevelPersonalCoach/0.1 (public job board reader)",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read(8_000_000).decode("utf-8", errors="replace"))
+
+
+def date_from_value(value) -> str:
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value / 1000, timezone.utc).date().isoformat()
+    value = clean_text(str(value or ""))
+    if value:
+        match = re.match(r"(\d{4}-\d{2}-\d{2})", value)
+        if match:
+            return match.group(1)
+    return now_iso()[:10]
+
+
 def role_match(title: str, description: str) -> tuple[str, int, list[str]]:
     text = f"{title} {description}".lower()
     best_role = TARGET_ROLES[0]
     best_hits: tuple[int, list[str]] = (-1, [])
     for role, terms in ROLE_TERMS.items():
-        hits = [term for term in terms if term in text]
+        hits = [term for term in terms if contains_term(text, term)]
         if len(hits) > best_hits[0]:
             best_role, best_hits = role, (len(hits), hits)
-    score = min(100, best_hits[0] * 28 + (22 if any(term in text for term in INTERNSHIP_TERMS) else 0) + min(20, sum(term in text for term in PROFILE_TERMS) * 3))
+    score = min(100, best_hits[0] * 28 + (22 if any(contains_term(text, term) for term in INTERNSHIP_TERMS) else 0) + min(20, sum(contains_term(text, term) for term in PROFILE_TERMS) * 3))
     return best_role, score, best_hits[1]
 
 
-def normalize_job(title: str, link: str, description: str, source: str) -> dict | None:
+def normalize_job(title: str, link: str, description: str, source: str, published_at=None, source_type="rss_atom") -> dict | None:
     title = clean_text(title)
     description = clean_text(description)
     if not title or not link:
         return None
     role, score, role_hits = role_match(title, description)
     text = f"{title} {description}".lower()
-    if not any(term in text for term in INTERNSHIP_TERMS):
+    if not any(contains_term(text, term) for term in INTERNSHIP_TERMS) or not role_hits:
         return None
-    matched_skills = [term for term in PROFILE_TERMS if term in text]
+    matched_skills = [term for term in PROFILE_TERMS if contains_term(text, term)]
     job_id = f"job-{hashlib.sha1(f'{title}{link}'.encode()).hexdigest()[:14]}"
     return {
         "id": job_id,
@@ -123,13 +162,17 @@ def normalize_job(title: str, link: str, description: str, source: str) -> dict 
         "matched_skills": matched_skills,
         "role_signals": role_hits,
         "grounded": True,
-        "source_type": "rss_atom",
-        "published_at": now_iso()[:10],
+        "source_type": source_type,
+        "published_at": date_from_value(published_at),
         "why_match": f"Matches your {role} target through {', '.join(matched_skills[:4]) or 'your operations and software background'}.",
     }
 
 
 def fetch_feed(url: str) -> list[dict]:
+    parsed = urllib.parse.urlparse(url)
+    source_scheme = parsed.scheme.lower()
+    if source_scheme in {"greenhouse", "lever"}:
+        return fetch_public_ats(url)
     root = ET.fromstring(fetch_url(url))
     source = urllib.parse.urlparse(url).netloc.replace("www.", "")
     jobs = []
@@ -143,13 +186,74 @@ def fetch_feed(url: str) -> list[dict]:
             for child in list(item):
                 if child.tag.rsplit("}", 1)[-1].lower() == "link":
                     link = child.attrib.get("href", "")
-        job = normalize_job(title, link, description, source)
+        job = normalize_job(title, link, description, source, source_type="rss_atom")
         if job:
             jobs.append(job)
     return jobs[:50]
 
 
+def fetch_public_ats(source: str) -> list[dict]:
+    """Read a public employer ATS board using greenhouse:// or lever:// syntax."""
+    parsed = urllib.parse.urlparse(source)
+    board = parsed.netloc or parsed.path.lstrip("/")
+    if not board:
+        raise ValueError(f"Missing ATS board name in {source}")
+
+    jobs = []
+    if parsed.scheme.lower() == "greenhouse":
+        payload = fetch_json(f"https://boards-api.greenhouse.io/v1/boards/{urllib.parse.quote(board)}/jobs?content=true")
+        for item in payload.get("jobs", []) if isinstance(payload, dict) else []:
+            content = item.get("content", "")
+            location = (item.get("location") or {}).get("name", "")
+            departments = ", ".join(department.get("name", "") for department in item.get("departments", []))
+            description = " | ".join(part for part in (location, departments, content) if part)
+            job = normalize_job(
+                item.get("title", ""),
+                item.get("absolute_url", ""),
+                description,
+                f"Greenhouse · {board}",
+                item.get("updated_at"),
+                source_type="greenhouse_public",
+            )
+            if job:
+                jobs.append(job)
+    elif parsed.scheme.lower() == "lever":
+        payload = fetch_json(f"https://api.lever.co/v0/postings/{urllib.parse.quote(board)}?mode=json")
+        for item in payload if isinstance(payload, list) else []:
+            categories = item.get("categories") or {}
+            location = categories.get("location", "")
+            commitment = categories.get("commitment", "")
+            description = " | ".join(
+                part for part in (
+                    location,
+                    commitment,
+                    item.get("descriptionPlain", ""),
+                    item.get("additionalPlain", ""),
+                ) if part
+            )
+            job = normalize_job(
+                item.get("text", ""),
+                item.get("hostedUrl") or item.get("applyUrl") or "",
+                description,
+                f"Lever · {board}",
+                item.get("createdAt") or item.get("updatedAt"),
+                source_type="lever_public",
+            )
+            if job:
+                jobs.append(job)
+    return jobs[:100]
+
+
+def is_relevant_job(job: dict) -> bool:
+    text = f"{job.get('title', '')} {job.get('description', '')}".lower()
+    return bool(job.get("role_signals")) and any(contains_term(text, term) for term in INTERNSHIP_TERMS)
+
+
 def scan(state: dict) -> dict:
+    # Remove records that came from older, looser matching rules before merging
+    # the current source snapshot. Saved/applied status is retained for valid
+    # records because it belongs to the user's workflow.
+    state["opportunities"] = [job for job in state["opportunities"] if is_relevant_job(job)]
     existing = {job["id"]: job for job in state["opportunities"]}
     fetched = 0
     refreshed = 0
@@ -169,7 +273,7 @@ def scan(state: dict) -> dict:
         except Exception as error:
             failures.append({"url": url, "error": str(error)})
     state["opportunities"] = sorted(state["opportunities"], key=lambda job: (job.get("match_score", 0), job.get("published_at", "")), reverse=True)
-    run = {"id": f"opportunity-run-{len(state['runs']) + 1:03d}", "completed_at": now_iso(), "feeds": feeds, "fetched": fetched, "refreshed": refreshed, "failures": failures, "mode": "public_feeds"}
+    run = {"id": f"opportunity-run-{len(state['runs']) + 1:03d}", "completed_at": now_iso(), "feeds": feeds, "fetched": fetched, "refreshed": refreshed, "failures": failures, "mode": "public_sources"}
     state["runs"].insert(0, run)
     state["updated_at"] = run["completed_at"]
     return run
