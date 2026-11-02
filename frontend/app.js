@@ -221,6 +221,12 @@ document.querySelector("#challenge-button")?.addEventListener("click", async () 
   }
 });
 
+document.querySelector("#start-assessment")?.addEventListener("click", () => {
+  document.querySelector(".answer-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  document.querySelector(".answer-box")?.focus();
+  showToast("Assessment ready · answer the article-based question on the left.");
+});
+
 document.querySelector("#reference-button")?.addEventListener("click", () => {
   const article = articleData[state.selectedArticle];
   if (article?.reference) {
