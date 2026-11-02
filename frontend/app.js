@@ -18,7 +18,7 @@ const titles = {
   overview: { breadcrumb: "Overview", title: "Your technical edge,<br /><em>one day sharper.</em>" },
   workflow: { breadcrumb: "Agent workflow", title: "See the loop,<br /><em>step by step.</em>" },
   radar: { breadcrumb: "Technical radar", title: "Signals worth<br /><em>your attention.</em>" },
-  lab: { breadcrumb: "Career lab", title: "Practice the work,<br /><em>earn the edge.</em>" },
+  lab: { breadcrumb: "Career readiness", title: "Your readiness,<br /><em>made measurable.</em>" },
 };
 
 function showToast(message) {
@@ -127,8 +127,32 @@ function applyDashboard(data) {
     if (note) note.innerHTML = `You’re <b>${100 - data.readiness.overall} points</b> from your ${data.readiness.target} target.`;
     const reportScore = document.querySelector(".report-score > strong");
     if (reportScore) reportScore.textContent = data.readiness.overall;
+    applyReadiness(data.readiness);
   }
   renderArticleList(data.articles || []);
+}
+
+function applyReadiness(report) {
+  const score = Number(report.overall || 0);
+  const status = document.querySelector("#readiness-status");
+  const evidence = document.querySelector("#readiness-evidence");
+  const target = document.querySelector("#readiness-target");
+  const confidence = document.querySelector("#readiness-confidence");
+  if (status) status.textContent = score >= 80 ? "Strong trajectory" : score >= 60 ? "On track" : "Build next";
+  if (evidence) evidence.textContent = report.evidence_count ? `${report.evidence_count} assessed answers` : "Resume baseline";
+  if (target) target.textContent = report.target || "Target role pending";
+  if (confidence) confidence.textContent = `${Math.round((report.confidence || 0) * 100)}% evidence confidence`;
+
+  const bars = document.querySelector("#readiness-bars");
+  if (bars) {
+    bars.innerHTML = (report.dimensions || []).map((dimension) => `<div><span><b>${dimension.name}</b><em>${dimension.score}%</em></span><i><b style="width:${dimension.score}%"></b></i></div>`).join("");
+  }
+  const strengths = document.querySelector("#readiness-strengths");
+  if (strengths) strengths.innerHTML = (report.strengths || []).map((item) => `<li>${item.name} <b>${item.score}%</b></li>`).join("") || "<li>Complete an assessment to establish strengths.</li>";
+  const gaps = document.querySelector("#readiness-gaps");
+  if (gaps) gaps.innerHTML = (report.gaps || []).map((item) => `<li>${item.name} <b>${item.score}%</b></li>`).join("") || "<li>Complete an assessment to identify gaps.</li>";
+  const next = document.querySelector("#readiness-next");
+  if (next) next.textContent = report.next_action || "Complete the next article-based assessment.";
 }
 
 async function syncDashboard() {
@@ -222,6 +246,7 @@ document.querySelector("#submit-answer")?.addEventListener("click", async (event
       submitButton.innerHTML = 'Feedback ready <span>↗</span>';
       const score = document.querySelector(".report-score > strong");
       if (score) score.textContent = result.readiness.overall;
+      applyReadiness(result.readiness);
       showToast(`Assessment complete · readiness is now ${result.readiness.overall}/100.`);
       return;
     } catch {
