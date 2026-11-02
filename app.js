@@ -6,6 +6,39 @@ const pageTitle = document.querySelector("#page-title");
 const toast = document.querySelector("#toast");
 const runButton = document.querySelector("#run-button");
 
+const articleData = [
+  {
+    title: "Why durable execution is becoming the new reliability primitive",
+    tag: "FRONTIER LABS",
+    tagClass: "tag-teal",
+    source: "Temporal Engineering",
+    readTime: "7 min read",
+    summary: "Long-running agent workflows fail differently from request/response services: they must survive retries, worker restarts, partial tool calls, and human handoffs. Durable execution frameworks externalize progress so the workflow can resume from the last safe checkpoint instead of starting over.",
+    takeaways: ["Checkpoint every side effect before moving to the next step.", "Make retries idempotent so recovery does not create duplicate work.", "Trace state transitions, not just individual service calls."],
+    action: "SREs who can reason about failure across async systems will be well-positioned to operate agentic platforms.",
+  },
+  {
+    title: "Operating Kubernetes with a platform team mindset",
+    tag: "GOOGLE CLOUD",
+    tagClass: "tag-blue",
+    source: "Google Cloud Blog",
+    readTime: "5 min read",
+    summary: "Platform engineering is moving beyond a collection of internal tools. The strongest teams build paved roads with clear ownership, observable service-level signals, and enough guardrails to reduce cognitive load without hiding operational reality.",
+    takeaways: ["Measure platform adoption and developer friction, not tool count.", "Offer a safe default path while keeping escape hatches visible.", "Treat internal platforms like products with feedback loops."],
+    action: "Use your support background as an advantage: document one paved road that would make a recurring handoff easier for developers.",
+  },
+  {
+    title: "Tracing the path from model call to production incident",
+    tag: "OPENAI",
+    tagClass: "tag-purple",
+    source: "OpenAI Engineering",
+    readTime: "9 min read",
+    summary: "Observability for AI systems needs to connect model calls, tool use, prompt and policy decisions, cost, latency, and human escalation into one incident story. A single request trace is not enough when the system can branch, retry, or ask for help.",
+    takeaways: ["Correlate model, tool, and infrastructure spans in one trace.", "Track quality and cost signals beside latency and errors.", "Make human escalation an observable state transition."],
+    action: "Sketch the trace context you would want during an incident involving a model call, a tool timeout, and a manual escalation.",
+  },
+];
+
 const titles = {
   overview: { breadcrumb: "Overview", title: "Your technical edge,<br /><em>one day sharper.</em>" },
   workflow: { breadcrumb: "Agent workflow", title: "See the loop,<br /><em>step by step.</em>" },
@@ -49,10 +82,23 @@ document.querySelectorAll(".article-row").forEach((article) => {
     state.selectedArticle = Number(article.dataset.article);
     document.querySelectorAll(".article-row").forEach((row) => row.classList.remove("selected"));
     article.classList.add("selected");
-    const source = article.querySelector(".article-footer span")?.textContent || "source";
-    showToast(`Brief selected · ${source}`);
+    renderArticleDetail(state.selectedArticle);
+    showToast(`Brief selected · ${articleData[state.selectedArticle].source}`);
   });
 });
+
+function renderArticleDetail(index) {
+  const article = articleData[index];
+  if (!article) return;
+  document.querySelector("#detail-heading").textContent = article.title;
+  document.querySelector("#detail-meta").innerHTML = `<span class="tag ${article.tagClass}">${article.tag}</span><span>${article.source}</span><span>${article.readTime}</span>`;
+  document.querySelector("#detail-summary").textContent = article.summary;
+  document.querySelector("#detail-takeaways").innerHTML = article.takeaways.map((takeaway) => `<li>${takeaway}</li>`).join("");
+  document.querySelector("#detail-action-text").textContent = article.action;
+  document.querySelector("#detail-reference").textContent = `Reference · ${article.source}`;
+}
+
+renderArticleDetail(state.selectedArticle);
 
 document.querySelectorAll(".filter").forEach((filter) => {
   filter.addEventListener("click", () => {
@@ -79,6 +125,10 @@ runButton.addEventListener("click", () => {
 document.querySelector("#challenge-button")?.addEventListener("click", () => {
   setView("lab");
   showToast("Challenge ready · answer the incident command prompt.");
+});
+
+document.querySelector("#reference-button")?.addEventListener("click", () => {
+  showToast("Reference connector pending · this preview is using sample article content.");
 });
 
 document.querySelector("#submit-answer")?.addEventListener("click", (event) => {
