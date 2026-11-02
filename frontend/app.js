@@ -205,7 +205,7 @@ document.querySelector("#challenge-button")?.addEventListener("click", async () 
     showToast("Challenge ready · answer the personalized prompt.");
   } catch {
     state.backendOnline = false;
-    showToast("Challenge ready · answer the incident command prompt.");
+    showToast("Challenge ready · answer the article-based prompt.");
   }
 });
 

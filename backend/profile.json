@@ -53,7 +53,7 @@
   ],
   "education": ["M.S. Software Engineering, San Jose State University (in progress)", "B.Tech Computer Engineering, Dharamsinh Desai University"],
   "baseline_competencies": {
-    "incident_response": 68,
+    "operational_response": 68,
     "aws_cloud": 78,
     "automation_iac": 76,
     "reliability_systems": 64,

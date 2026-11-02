@@ -135,7 +135,7 @@ SEED_ARTICLES = [
 
 
 COMPETENCIES = [
-    {"key": "incident_response", "label": "Incident response", "weight": 0.30},
+    {"key": "operational_response", "label": "Operational execution", "weight": 0.30},
     {"key": "aws_cloud", "label": "Systems, cloud, and networking", "weight": 0.25},
     {"key": "automation_iac", "label": "Automation and infrastructure as code", "weight": 0.20},
     {"key": "reliability_systems", "label": "Reliability and systems design", "weight": 0.15},
@@ -281,7 +281,7 @@ def readiness_report(state: dict) -> dict:
     scores = dict(profile["baseline_competencies"])
     evidence = {key: 0 for key in scores}
     for answer in state.get("answers", []):
-        competency = answer.get("competency", "incident_response")
+        competency = answer.get("competency", "operational_response")
         if competency in scores:
             score = float(answer.get("score", 0))
             scores[competency] = round((scores[competency] * 3 + score) / 4)
@@ -291,7 +291,7 @@ def readiness_report(state: dict) -> dict:
     strengths = [{"name": item["label"], "score": scores[item["key"]]} for item in ranked[:2]]
     gaps = [{"name": item["label"], "score": scores[item["key"]]} for item in ranked[-2:][::-1]]
     confidence = min(0.95, round(0.45 + sum(evidence.values()) * 0.08, 2))
-    return {"overall": weighted, "confidence": confidence, "confidence_label": "high" if confidence >= .75 else "medium", "target": profile["target_roles"][0], "dimensions": [{"key": item["key"], "name": item["label"], "score": scores[item["key"]], "weight": item["weight"]} for item in COMPETENCIES], "strengths": strengths, "gaps": gaps, "evidence_count": sum(evidence.values()), "next_action": "Practice a blameless incident narrative with a clear now / next / later structure."}
+    return {"overall": weighted, "confidence": confidence, "confidence_label": "high" if confidence >= .75 else "medium", "target": profile["target_roles"][0], "dimensions": [{"key": item["key"], "name": item["label"], "score": scores[item["key"]], "weight": item["weight"]} for item in COMPETENCIES], "strengths": strengths, "gaps": gaps, "evidence_count": sum(evidence.values()), "next_action": "Turn one article insight into a small implementation experiment and document what you learned."}
 
 
 def opportunity_list() -> list[dict]:
@@ -305,24 +305,25 @@ def opportunity_list() -> list[dict]:
 
 def next_challenge(article_id: str | None = None) -> dict:
     articles = {article["id"]: article for article in load_state()["articles"]}
-    article = articles.get(article_id) if article_id else None
-    if article and article["lane"] == "general_ai_development":
-        return {"question_id": f"challenge-{article['id']}", "competency": "reliability_systems", "source_article_id": article["id"], "prompt": f"Based on \"{article['title']}\", design one failure-safe pattern you would use in a production workflow. Explain what can fail, how the system recovers, and what you would observe.", "rubric": ["names a concrete failure mode", "proposes a recovery or idempotency strategy", "includes observability", "explains a tradeoff"]}
-    return {"question_id": "incident-command-001", "competency": "incident_response", "source_article_id": article["id"] if article else None, "prompt": "A checkout service is returning intermittent 502s. Error rate is 3%, latency is climbing, and the last deploy was 20 minutes ago. Walk through your first 10 minutes.", "rubric": ["prioritizes customer impact and blast radius", "checks change history and service signals", "chooses mitigation or rollback deliberately", "communicates now, next, and later"]}
+    article = articles.get(article_id) if article_id else next(iter(articles.values()), None)
+    if article:
+        competency = "reliability_systems" if article["lane"] == "general_ai_development" else "automation_iac"
+        return {"question_id": f"challenge-{article['id']}", "competency": competency, "source_article_id": article["id"], "prompt": f"Based on \"{article['title']}\", design one practical pattern or implementation decision you would use in your work. Explain the tradeoffs, what could fail, and how you would validate the result.", "rubric": ["connects the article to a concrete implementation", "explains a tradeoff or failure mode", "includes a validation or observability step", "relates the idea to a real engineering context"]}
+    return {"question_id": "article-challenge-001", "competency": "reliability_systems", "source_article_id": None, "prompt": "Choose one technical idea you learned recently. Explain how you would apply it in a production system, what could fail, and how you would validate the result.", "rubric": ["connects learning to implementation", "explains a tradeoff", "includes validation", "shows practical understanding"]}
 
 
 def evaluate_answer(question: dict, answer: str) -> dict:
     answer_lower = answer.lower()
     signals = [
-        ["impact", "blast radius", "customer", "severity", "priorit"],
-        ["log", "metric", "trace", "dependency", "cloudwatch", "dashboard", "deploy"],
-        ["rollback", "mitigat", "pause", "feature flag", "scale", "failover"],
-        ["communicat", "status", "now", "next", "later", "escalat"],
+        ["tradeoff", "failure", "risk", "constraint", "priorit"],
+        ["log", "metric", "trace", "observe", "monitor", "signal", "validate", "test"],
+        ["retry", "idempotent", "recover", "fallback", "rollback", "mitigat", "scale"],
+        ["communicat", "owner", "document", "now", "next", "later", "follow-up", "context"],
     ]
     hits = sum(1 for group in signals if any(token in answer_lower for token in group))
     depth = sum(1 for token in ["tradeoff", "idempotent", "hypothesis", "timeline", "owner", "follow-up"] if token in answer_lower)
     score = min(100, hits * 20 + min(depth, 4) * 5)
-    return {"score": score, "feedback": "Strong operational answer." if score >= 75 else "Good start. Add clearer prioritization, evidence, and follow-up ownership.", "signals_found": hits, "depth_signals": depth}
+    return {"score": score, "feedback": "Strong practical answer." if score >= 75 else "Good start. Add a clearer tradeoff, validation step, and connection to a real engineering context.", "signals_found": hits, "depth_signals": depth}
 
 
 def dashboard() -> dict:
