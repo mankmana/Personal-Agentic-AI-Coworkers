@@ -14,6 +14,7 @@ import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from html.parser import HTMLParser
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -153,16 +154,41 @@ def feed_urls() -> dict[str, list[str]]:
 def element_text(element: ET.Element, names: tuple[str, ...]) -> str:
     for child in list(element):
         if child.tag.rsplit("}", 1)[-1].lower() in names:
-            return clean_text(child.text or "")
+            return visible_text(child.text or "")
     return ""
+
+
+class VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.blocked = 0
+        self.block_tags = {"head", "script", "style", "noscript", "svg", "nav", "footer", "form"}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in self.block_tags:
+            self.blocked += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self.block_tags and self.blocked:
+            self.blocked -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self.blocked:
+            self.parts.append(data)
+
+
+def visible_text(raw: str) -> str:
+    parser = VisibleTextParser()
+    parser.feed(raw or "")
+    return clean_text(" ".join(parser.parts))
 
 
 def fetch_article_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "DailyTechUpgradeAgent/0.1"})
     with urllib.request.urlopen(request, timeout=6) as response:
         raw = response.read(500_000).decode("utf-8", errors="replace")
-    text = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<noscript[\s\S]*?</noscript>", " ", raw, flags=re.IGNORECASE)
-    text = clean_text(text)
+    text = visible_text(raw)
     return text[:16000]
 
 
@@ -191,7 +217,8 @@ def fetch_feed(url: str, lane: str) -> list[dict]:
         for future in as_completed(futures):
             link = futures[future]
             try:
-                page_texts[link] = future.result()
+                page_text = future.result()
+                page_texts[link] = page_text if len(page_text) >= 240 else ""
             except (OSError, ValueError, urllib.error.URLError):
                 page_texts[link] = ""
 
@@ -223,7 +250,7 @@ def ingest_sources(state: dict, lanes: list[str]) -> dict:
                         state["articles"].insert(0, article)
                         existing_ids.add(article["id"])
                         fetched += 1
-                    elif existing_articles[article["id"]].get("grounding_basis") != "article_page":
+                    elif existing_articles[article["id"]].get("source_type") == "rss_atom":
                         index = next(index for index, current in enumerate(state["articles"]) if current["id"] == article["id"])
                         state["articles"][index] = article
                         refreshed += 1
