@@ -1,4 +1,4 @@
-const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null };
+const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null, learning: null };
 const panels = [...document.querySelectorAll("[data-panel]")];
 const navItems = [...document.querySelectorAll("[data-view]")];
 const breadcrumb = document.querySelector("#breadcrumb-current");
@@ -119,13 +119,38 @@ function renderArticleDetail(index) {
 
 function applyDashboard(data) {
   if (!data) return;
-  const scanNote = document.querySelector("#scan-note");
-  if (scanNote && data.last_scan) {
-    const completed = new Date(data.last_scan.completed_at);
-    const when = Number.isNaN(completed.getTime()) ? "recently" : completed.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    scanNote.innerHTML = `Last scan ${when} · <b>${data.last_scan.fetched || 0} new sources</b>`;
-  }
+  if (data.learning) applyLearning(data.learning);
   renderArticleList(data.articles || []);
+}
+
+function applyLearning(learning) {
+  state.learning = learning;
+  const streak = document.querySelector("#learning-streak");
+  const trend = document.querySelector("#learning-trend");
+  const note = document.querySelector("#learning-note");
+  const days = document.querySelector("#learning-days");
+  if (streak) streak.textContent = String(learning.streak_days || 0).padStart(2, "0");
+  if (trend) {
+    const delta = Number(learning.week_delta || 0);
+    trend.textContent = `${delta >= 0 ? "↗" : "↘"} ${Math.abs(delta)} days`;
+    trend.classList.toggle("up", delta >= 0);
+    trend.classList.toggle("neutral", delta < 0);
+  }
+  if (note) note.innerHTML = learning.completed_today ? "Today’s challenge is complete. Keep the streak alive tomorrow." : "Complete one article challenge today to start or continue your streak.";
+  if (days) days.innerHTML = (learning.completed_days || []).map((complete, index, values) => `<span class="${complete ? "done" : ""} ${index === values.length - 1 ? "today" : ""}"></span>`).join("");
+}
+
+function showLearningChallenge(learning) {
+  state.learning = learning;
+  const challenge = learning.challenge || {};
+  document.querySelector("#challenge-source").textContent = `Grounded article · ${challenge.source_title || "today’s technical brief"} · ${challenge.source || "source"}`;
+  document.querySelector("#challenge-prompt").textContent = challenge.prompt || "Choose one technical idea from today’s brief and explain how you would apply it safely.";
+  document.querySelector("#challenge-answer").value = "";
+  const completeButton = document.querySelector("#complete-learning");
+  completeButton.innerHTML = "Complete challenge <span>↗</span>";
+  completeButton.disabled = Boolean(learning.completed_today);
+  document.querySelector("#challenge-modal").hidden = false;
+  document.querySelector("#challenge-answer").focus();
 }
 
 async function syncDashboard() {
@@ -186,6 +211,41 @@ document.querySelector("#reference-button")?.addEventListener("click", () => {
     return;
   }
   showToast("No source URL is loaded yet. Run the daily scan first.");
+});
+
+document.querySelector("#learning-challenge-button")?.addEventListener("click", async () => {
+  try {
+    const learning = await apiRequest("/api/learning");
+    state.backendOnline = true;
+    showLearningChallenge(learning);
+  } catch {
+    showToast("The daily challenge is unavailable until the backend is connected.");
+  }
+});
+
+document.querySelectorAll("[data-close-challenge]").forEach((element) => {
+  element.addEventListener("click", () => { document.querySelector("#challenge-modal").hidden = true; });
+});
+
+document.querySelector("#complete-learning")?.addEventListener("click", async (event) => {
+  const answer = document.querySelector("#challenge-answer").value.trim();
+  if (answer.length < 20) {
+    showToast("Write at least 20 characters to complete today’s challenge.");
+    return;
+  }
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "Saving…";
+  try {
+    const result = await apiRequest("/api/learning/complete", { method: "POST", body: JSON.stringify({ article_id: state.learning?.challenge?.source_article_id || null, answer }) });
+    applyLearning(result.learning);
+    document.querySelector("#challenge-modal").hidden = true;
+    showToast(`Learning day complete · ${result.learning.streak_days}-day streak.`);
+  } catch (error) {
+    button.disabled = false;
+    button.innerHTML = 'Complete challenge <span>↗</span>';
+    showToast("The challenge could not be saved. Try again.");
+  }
 });
 
 syncDashboard();

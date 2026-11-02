@@ -39,6 +39,10 @@ The backend does not serve seeded article cards. A successful RSS/Atom ingestion
 
 `POST /api/scan` performs an immediate scan for the selected lanes. On startup, the server scans if the last run is older than `SCAN_INTERVAL_HOURS` (24 hours by default). A daemon scheduler checks once per minute and runs the same scan when the interval is due. Set `SCAN_INTERVAL_HOURS` to change the cadence.
 
+## Learning momentum
+
+The dashboard challenge is independent of the removed Career Readiness UI. `GET /api/learning` returns one challenge based on the latest grounded article plus the current streak. `POST /api/learning/complete` records one completed challenge per local calendar day using `USER_TIMEZONE` (America/Los_Angeles by default). The streak and week-over-week delta are calculated from persisted completion dates rather than hardcoded values.
+
 ## Local state
 
 `backend/data/state.json` is created at runtime and intentionally ignored by Git. It stores scan runs, submitted answers, and readiness updates. A production deployment should replace it with a database and add authentication per user.

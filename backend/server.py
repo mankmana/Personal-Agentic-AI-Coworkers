@@ -19,9 +19,10 @@ import urllib.parse
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/responses")
 SCAN_INTERVAL_HOURS = float(os.getenv("SCAN_INTERVAL_HOURS", "24"))
+USER_TIMEZONE = os.getenv("USER_TIMEZONE", "America/Los_Angeles")
 STATE_LOCK = threading.Lock()
 SCHEDULER_STOP = threading.Event()
 
@@ -66,7 +68,7 @@ COMPETENCIES = [
 
 
 def default_state() -> dict:
-    return {"articles": [], "answers": [], "runs": [], "updated_at": now_iso()}
+    return {"articles": [], "answers": [], "learning_activity": [], "runs": [], "updated_at": now_iso()}
 
 
 def load_state() -> dict:
@@ -76,6 +78,7 @@ def load_state() -> dict:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
         state.setdefault("articles", [])
         state.setdefault("answers", [])
+        state.setdefault("learning_activity", [])
         state.setdefault("runs", [])
         state["articles"] = [article for article in state["articles"] if article.get("reference") and article.get("grounded", True)]
         for article in state["articles"]:
@@ -313,13 +316,57 @@ def readiness_report(state: dict) -> dict:
     return {"overall": weighted, "confidence": confidence, "confidence_label": "high" if confidence >= .75 else "medium", "target": profile["target_roles"][0], "dimensions": [{"key": item["key"], "name": item["label"], "score": scores[item["key"]], "weight": item["weight"]} for item in COMPETENCIES], "strengths": strengths, "gaps": gaps, "evidence_count": sum(evidence.values()), "next_action": "Turn one article insight into a small implementation experiment and document what you learned."}
 
 
-def next_challenge(article_id: str | None = None) -> dict:
-    articles = {article["id"]: article for article in load_state()["articles"]}
-    article = articles.get(article_id) if article_id else next(iter(articles.values()), None)
+def challenge_for_article(article: dict | None) -> dict:
     if article:
         competency = "reliability_systems" if article["lane"] == "general_ai_development" else "automation_iac"
         return {"question_id": f"challenge-{article['id']}", "competency": competency, "source_article_id": article["id"], "prompt": f"Based on \"{article['title']}\", design one practical pattern or implementation decision you would use in your work. Explain the tradeoffs, what could fail, and how you would validate the result.", "rubric": ["connects the article to a concrete implementation", "explains a tradeoff or failure mode", "includes a validation or observability step", "relates the idea to a real engineering context"]}
     return {"question_id": "article-challenge-001", "competency": "reliability_systems", "source_article_id": None, "prompt": "Choose one technical idea you learned recently. Explain how you would apply it in a production system, what could fail, and how you would validate the result.", "rubric": ["connects learning to implementation", "explains a tradeoff", "includes validation", "shows practical understanding"]}
+
+
+def next_challenge(article_id: str | None = None) -> dict:
+    articles = {article["id"]: article for article in load_state()["articles"]}
+    article = articles.get(article_id) if article_id else next(iter(articles.values()), None)
+    return challenge_for_article(article)
+
+
+def local_today() -> date:
+    try:
+        return datetime.now(ZoneInfo(USER_TIMEZONE)).date()
+    except Exception:
+        return datetime.now(timezone.utc).date()
+
+
+def learning_stats(state: dict) -> dict:
+    today = local_today()
+    completed_dates = set()
+    for item in state.get("learning_activity", []):
+        try:
+            completed_dates.add(date.fromisoformat(item["date"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    cursor = today if today in completed_dates else today - timedelta(days=1)
+    streak = 0
+    while cursor in completed_dates:
+        streak += 1
+        cursor -= timedelta(days=1)
+    current_week = sum(1 for offset in range(7) if today - timedelta(days=offset) in completed_dates)
+    previous_week = sum(1 for offset in range(7, 14) if today - timedelta(days=offset) in completed_dates)
+    article = state["articles"][0] if state.get("articles") else None
+    challenge = challenge_for_article(article)
+    challenge["source_title"] = article["title"] if article else "No grounded article loaded"
+    challenge["source"] = article["source"] if article else "DailyTechUpgradeAgent"
+    return {"streak_days": streak, "week_delta": current_week - previous_week, "completed_today": today in completed_dates, "completed_days": [today - timedelta(days=offset) in completed_dates for offset in range(6, -1, -1)], "challenge": challenge, "timezone": USER_TIMEZONE}
+
+
+def complete_learning_activity(state: dict, article_id: str | None, answer: str) -> dict:
+    today = local_today().isoformat()
+    for item in state["learning_activity"]:
+        if item.get("date") == today:
+            return learning_stats(state)
+    state["learning_activity"].insert(0, {"date": today, "article_id": article_id, "activity": "daily_challenge_completed", "answer": answer, "completed_at": now_iso()})
+    state["updated_at"] = now_iso()
+    return learning_stats(state)
 
 
 def evaluate_answer(question: dict, answer: str) -> dict:
@@ -340,7 +387,7 @@ def dashboard() -> dict:
     with STATE_LOCK:
         state = load_state()
     articles = state["articles"]
-    return {"profile": read_profile(), "readiness": readiness_report(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"source_grounded_articles": sum(1 for article in articles if article.get("grounded")), "article_page_summaries": sum(1 for article in articles if article.get("grounding_basis") == "article_page"), "feed_entry_summaries": sum(1 for article in articles if article.get("grounding_basis") == "feed_entry"), "note": "Every article returned by this API has a source URL and is summarized from fetched source text."}, "scheduler": {"enabled": True, "interval_hours": SCAN_INTERVAL_HOURS}}
+    return {"profile": read_profile(), "readiness": readiness_report(state), "learning": learning_stats(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"source_grounded_articles": sum(1 for article in articles if article.get("grounded")), "article_page_summaries": sum(1 for article in articles if article.get("grounding_basis") == "article_page"), "feed_entry_summaries": sum(1 for article in articles if article.get("grounding_basis") == "feed_entry"), "note": "Every article returned by this API has a source URL and is summarized from fetched source text."}, "scheduler": {"enabled": True, "interval_hours": SCAN_INTERVAL_HOURS}}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -387,6 +434,9 @@ class Handler(SimpleHTTPRequestHandler):
             lane = urllib.parse.parse_qs(parsed.query).get("lane", ["all"])[0]
             articles = dashboard()["articles"] if lane == "all" else [a for a in dashboard()["articles"] if a["lane"] == lane]
             return self.send_json({"articles": articles, "lane": lane})
+        if parsed.path == "/api/learning":
+            with STATE_LOCK:
+                return self.send_json(learning_stats(load_state()))
         if parsed.path == "/api/challenges/next":
             article_id = urllib.parse.parse_qs(parsed.query).get("article_id", [None])[0]
             return self.send_json(next_challenge(article_id))
@@ -414,6 +464,16 @@ class Handler(SimpleHTTPRequestHandler):
                 save_state(state)
                 report = readiness_report(state)
             return self.send_json({"assessment": result, "readiness": report})
+        if parsed.path == "/api/learning/complete":
+            payload = self.read_json()
+            answer = clean_text(payload.get("answer", ""))
+            if len(answer) < 20:
+                return self.send_json({"error": "Write at least 20 characters so the challenge represents completed learning."}, 400)
+            with STATE_LOCK:
+                state = load_state()
+                learning = complete_learning_activity(state, payload.get("article_id"), answer)
+                save_state(state)
+            return self.send_json({"learning": learning})
         return self.send_json({"error": "Not found"}, 404)
 
 

@@ -52,6 +52,15 @@ html, body { background: #f4f7f6; }
 body { color: #182824; }
 .metrics-grid { grid-template-columns: 1fr; }
 .radar-card.is-hidden { display: none; }
+.learning-card .text-button { display: block; margin-top: 14px; padding: 0; text-align: left; }
+.challenge-modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; }
+.challenge-backdrop { position: absolute; inset: 0; background: rgba(16,34,29,.28); backdrop-filter: blur(3px); }
+.challenge-dialog { position: relative; z-index: 1; width: min(620px, 100%); padding: 24px; box-shadow: 0 20px 70px rgba(22,52,43,.2); }
+.challenge-source { margin: 20px 0 0; color: var(--teal); font-family: var(--mono); font-size: 9px; }
+.challenge-prompt { margin: 12px 0 18px; color: #40564f; font-size: 14px; line-height: 1.6; }
+.challenge-dialog textarea { width: 100%; resize: vertical; padding: 13px; border: 1px solid #dbe6e2; border-radius: 7px; background: #f8fbfa; color: #182824; font: 11px/1.6 var(--sans); }
+.challenge-dialog textarea:focus { border-color: var(--teal); outline: 2px solid rgba(115,226,195,.25); }
+.challenge-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; color: var(--muted-2); font-family: var(--mono); font-size: 8px; }
 .sidebar { background: #fbfdfc; border-color: #dbe6e2; }
 .agent-card.active { border-color: #b8ded3; background: #e9f6f1; }
 .agent-card:hover { background: #eef5f2; }

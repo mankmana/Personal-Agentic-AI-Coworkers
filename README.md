@@ -24,7 +24,8 @@ Then open [http://localhost:4173](http://localhost:4173).
 - Two content lanes: general AI development and SRE / DevOps / software support.
 - Source-grounded RSS/Atom ingestion. Every article returned by the backend has a source URL and is summarized from fetched feed or article-page text; the service does not serve seeded article cards.
 - Optional OpenAI Responses API adapter for model-backed summaries and evaluations when `OPENAI_API_KEY` is configured.
-- Career lab with generated technical challenges, answer evaluation, and persisted readiness updates.
+- Article-based daily challenge with persisted learning completions.
+- Real learning momentum tracking: one grounded article challenge per day, completion history, and a calculated streak.
 - JSON-backed local state for runs, answers, and progress; replace with Postgres in production.
 
 ## API surface
@@ -36,8 +37,10 @@ GET  /api/dashboard
 GET  /api/articles?lane=general_ai_development|sre_devops_support|all
 GET  /api/report
 GET  /api/challenges/next?article_id=...
+GET  /api/learning
 POST /api/scan
 POST /api/assessments
+POST /api/learning/complete
 ```
 
 Run a scan for both lanes:
