@@ -23,6 +23,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_ROOT = ROOT / "frontend"
 DATA_DIR = ROOT / "backend" / "data"
 STATE_PATH = Path(os.getenv("STATE_PATH", str(DATA_DIR / "state.json")))
 PROFILE_PATH = ROOT / "backend" / "profile.json"
@@ -407,7 +408,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main():
-    os.chdir(ROOT)
+    os.chdir(FRONTEND_ROOT)
     print(f"DailyTechUpgradeAgent backend running at http://localhost:{PORT}")
     print(f"OpenAI Responses integration: {'enabled' if OPENAI_API_KEY else 'disabled (fallback mode)'}")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

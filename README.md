@@ -48,7 +48,7 @@ curl -X POST http://localhost:4173/api/scan \
   -d '{"lanes":["general_ai_development","sre_devops_support"]}'
 ```
 
-The live RSS sources are configurable in `.env`; without network access or an API key, the service still returns the seeded demo articles and local fallback summaries.
+The live RSS sources are configurable in `.env`; start from `config/.env.example`. Without network access or an API key, the service still returns the seeded demo articles and local fallback summaries.
 
 ## Next integration seam
 
@@ -65,9 +65,15 @@ Suggested production adapters are RSS/Atom feeds and official blogs first, then 
 ├── backend/
 │   ├── profile.json
 │   └── server.py
-├── index.html
-├── styles.css
-├── app.js
+├── config/
+│   └── .env.example
+├── docs/
+│   └── architecture.md
+├── frontend/
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── .gitignore
 ├── package.json
 └── README.md
 ```
