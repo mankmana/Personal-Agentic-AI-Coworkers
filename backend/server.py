@@ -157,7 +157,6 @@ def feed_urls() -> dict[str, list[str]]:
         ],
         "sre_devops_support": [
             "https://aws.amazon.com/blogs/devops/feed/",
-            "https://cloud.google.com/blog/products/management-tools/rss",
         ],
     }
     for lane, env_name in [("general_ai_development", "GENERAL_FEEDS"), ("sre_devops_support", "DOMAIN_FEEDS")]:
@@ -169,6 +168,7 @@ def feed_urls() -> dict[str, list[str]]:
 def web_index_urls() -> dict[str, list[str]]:
     return {
         "general_ai_development": ["https://www.anthropic.com/news", "https://ai.meta.com/blog"],
+        "sre_devops_support": ["https://cloud.google.com/blog/products/devops-sre"],
     }
 
 
@@ -184,7 +184,7 @@ class VisibleTextParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
         self.blocked = 0
-        self.block_tags = {"head", "script", "style", "noscript", "svg", "nav", "footer", "form"}
+        self.block_tags = {"head", "script", "style", "noscript", "svg", "nav", "header", "aside", "menu", "footer", "form"}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() in self.block_tags:
@@ -256,6 +256,8 @@ def fetch_web_index(url: str, lane: str) -> list[dict]:
             valid = path.startswith("/news/") and path.count("/") >= 2 and path not in {"/news/announcements", "/news/features"}
         elif host.endswith("meta.com"):
             valid = path.startswith("/blog/") and path.count("/") >= 2
+        elif host.endswith("cloud.google.com"):
+            valid = path.startswith("/blog/products/devops-sre/") and path.count("/") >= 4
         else:
             valid = False
         if valid and link not in seen and len(title) >= 12:
@@ -294,7 +296,7 @@ def fetch_feed(url: str, lane: str) -> list[dict]:
         if item.tag.rsplit("}", 1)[-1].lower() not in {"item", "entry"}:
             continue
         title = element_text(item, ("title",))
-        description = element_text(item, ("description", "summary", "content"))
+        description = element_text(item, ("description", "summary", "content", "encoded"))
         link = element_text(item, ("link",))
         if not link:
             for child in list(item):
@@ -521,12 +523,29 @@ def evaluate_answer(question: dict, answer: str) -> dict:
     return {"score": score, "feedback": "Strong practical answer." if score >= 75 else "Good start. Add a clearer tradeoff, validation step, and connection to a real engineering context.", "signals_found": hits, "depth_signals": depth}
 
 
+def diverse_articles(articles: list[dict], limit: int) -> list[dict]:
+    by_source: dict[str, list[dict]] = {}
+    for article in articles:
+        by_source.setdefault(article.get("source", "unknown"), []).append(article)
+    selected = []
+    while len(selected) < limit and by_source:
+        for source in list(by_source):
+            bucket = by_source[source]
+            if bucket:
+                selected.append(bucket.pop(0))
+            if not bucket:
+                by_source.pop(source, None)
+            if len(selected) >= limit:
+                break
+    return selected
+
+
 def dashboard() -> dict:
     with STATE_LOCK:
         state = load_state()
     articles = state["articles"]
-    general_articles = [article for article in articles if article["lane"] == "general_ai_development"]
-    domain_articles = [article for article in articles if article["lane"] == "sre_devops_support"]
+    general_articles = diverse_articles([article for article in articles if article["lane"] == "general_ai_development"], len(articles))
+    domain_articles = diverse_articles([article for article in articles if article["lane"] == "sre_devops_support"], len(articles))
     mixed_articles = []
     for index in range(max(len(general_articles), len(domain_articles))):
         if index < len(general_articles):
