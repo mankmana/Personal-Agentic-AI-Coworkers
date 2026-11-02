@@ -348,6 +348,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", os.getenv("CORS_ORIGIN", "*"))
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store, max-age=0")
         super().end_headers()
 
     def send_json(self, payload: dict, status: int = 200):
