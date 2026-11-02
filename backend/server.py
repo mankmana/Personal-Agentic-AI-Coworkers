@@ -319,8 +319,20 @@ def readiness_report(state: dict) -> dict:
 def challenge_for_article(article: dict | None) -> dict:
     if article:
         competency = "reliability_systems" if article["lane"] == "general_ai_development" else "automation_iac"
-        return {"question_id": f"challenge-{article['id']}", "competency": competency, "source_article_id": article["id"], "prompt": f"Based on \"{article['title']}\", design one practical pattern or implementation decision you would use in your work. Explain the tradeoffs, what could fail, and how you would validate the result.", "rubric": ["connects the article to a concrete implementation", "explains a tradeoff or failure mode", "includes a validation or observability step", "relates the idea to a real engineering context"]}
-    return {"question_id": "article-challenge-001", "competency": "reliability_systems", "source_article_id": None, "prompt": "Choose one technical idea you learned recently. Explain how you would apply it in a production system, what could fail, and how you would validate the result.", "rubric": ["connects learning to implementation", "explains a tradeoff", "includes validation", "shows practical understanding"]}
+        title = article["title"]
+        summary = article.get("summary", "the main development described in the source")
+        questions = [
+            {"question_id": f"challenge-{article['id']}-q1", "type": "understand", "prompt": f"In your own words, what problem or technical development does \"{title}\" describe, and why does it matter? Use at least one detail from the article.", "rubric": ["accurately explains the article", "uses a source detail", "connects the development to an engineering outcome"]},
+            {"question_id": f"challenge-{article['id']}-q2", "type": "apply", "prompt": f"Using the idea from \"{title}\" (which discusses {summary[:180]}), how would you apply it in a software support, SRE, or DevOps workflow? Name a concrete implementation or operational task.", "rubric": ["connects the article to a concrete implementation", "relates the idea to SRE, DevOps, or support work", "describes a practical next step"]},
+            {"question_id": f"challenge-{article['id']}-q3", "type": "evaluate", "prompt": f"What is one tradeoff, failure mode, or security concern in applying \"{title}\"? Explain how you would validate the approach with a test, metric, log, trace, or rollback plan.", "rubric": ["explains a tradeoff or failure mode", "includes validation or observability", "shows practical engineering judgment"]},
+        ]
+        return {"question_id": f"challenge-{article['id']}", "competency": competency, "source_article_id": article["id"], "source_summary": summary, "source_title": title, "prompt": questions[0]["prompt"], "questions": questions, "question_count": len(questions)}
+    questions = [
+        {"question_id": "article-challenge-001-q1", "type": "understand", "prompt": "What is the most important technical idea you learned recently, and what engineering problem does it address?", "rubric": ["accurately explains the idea", "states the problem", "uses a concrete detail"]},
+        {"question_id": "article-challenge-001-q2", "type": "apply", "prompt": "How would you apply that idea in a software support, SRE, or DevOps workflow? Name one concrete task.", "rubric": ["connects learning to implementation", "relates it to operations", "describes a next step"]},
+        {"question_id": "article-challenge-001-q3", "type": "evaluate", "prompt": "What could fail or create risk, and how would you validate the approach with a metric, test, log, trace, or rollback plan?", "rubric": ["explains a tradeoff", "includes validation", "shows practical understanding"]},
+    ]
+    return {"question_id": "article-challenge-001", "competency": "reliability_systems", "source_article_id": None, "source_title": "No grounded article loaded", "prompt": questions[0]["prompt"], "questions": questions, "question_count": len(questions)}
 
 
 def next_challenge(article_id: str | None = None) -> dict:
@@ -356,15 +368,21 @@ def learning_stats(state: dict) -> dict:
     challenge = challenge_for_article(article)
     challenge["source_title"] = article["title"] if article else "No grounded article loaded"
     challenge["source"] = article["source"] if article else "DailyTechUpgradeAgent"
-    return {"streak_days": streak, "week_delta": current_week - previous_week, "completed_today": today in completed_dates, "completed_days": [today - timedelta(days=offset) in completed_dates for offset in range(6, -1, -1)], "challenge": challenge, "timezone": USER_TIMEZONE}
+    today_activity = next((item for item in state.get("learning_activity", []) if item.get("date") == today.isoformat()), None)
+    return {"streak_days": streak, "week_delta": current_week - previous_week, "completed_today": today in completed_dates, "completed_days": [today - timedelta(days=offset) in completed_dates for offset in range(6, -1, -1)], "challenge": challenge, "quiz_score": today_activity.get("score") if today_activity else None, "quiz_results": today_activity.get("results", []) if today_activity else [], "timezone": USER_TIMEZONE}
 
 
-def complete_learning_activity(state: dict, article_id: str | None, answer: str) -> dict:
+def complete_learning_activity(state: dict, article_id: str | None, answers: list[str]) -> dict:
     today = local_today().isoformat()
     for item in state["learning_activity"]:
         if item.get("date") == today:
             return learning_stats(state)
-    state["learning_activity"].insert(0, {"date": today, "article_id": article_id, "activity": "daily_challenge_completed", "answer": answer, "completed_at": now_iso()})
+    articles = {article["id"]: article for article in state.get("articles", [])}
+    challenge = challenge_for_article(articles.get(article_id))
+    questions = challenge.get("questions", [])
+    results = [evaluate_answer(question, answer) for question, answer in zip(questions, answers)]
+    score = round(sum(result["score"] for result in results) / len(results)) if results else 0
+    state["learning_activity"].insert(0, {"date": today, "article_id": article_id, "activity": "daily_quiz_completed", "answers": answers, "results": results, "score": score, "completed_at": now_iso()})
     state["updated_at"] = now_iso()
     return learning_stats(state)
 
@@ -466,12 +484,15 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"assessment": result, "readiness": report})
         if parsed.path == "/api/learning/complete":
             payload = self.read_json()
-            answer = clean_text(payload.get("answer", ""))
-            if len(answer) < 20:
-                return self.send_json({"error": "Write at least 20 characters so the challenge represents completed learning."}, 400)
+            raw_answers = payload.get("answers")
+            if not isinstance(raw_answers, list):
+                raw_answers = [payload.get("answer", "")]
+            answers = [clean_text(answer) for answer in raw_answers]
+            if len(answers) != 3 or any(len(answer) < 20 for answer in answers):
+                return self.send_json({"error": "Answer all 3 questions with at least 20 characters each."}, 400)
             with STATE_LOCK:
                 state = load_state()
-                learning = complete_learning_activity(state, payload.get("article_id"), answer)
+                learning = complete_learning_activity(state, payload.get("article_id"), answers)
                 save_state(state)
             return self.send_json({"learning": learning})
         return self.send_json({"error": "Not found"}, 404)

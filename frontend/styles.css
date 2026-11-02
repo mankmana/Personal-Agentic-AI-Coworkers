@@ -218,3 +218,8 @@ body { color: #16324b; font-size: 14px; }
 .radar-score, .radar-bottom { font-size: 11px; }
 .radar-card h3, .large-step h3 { font-size: 17px; }
 .workflow-node small, .workflow-footer, .focus-list small { font-size: 11px; }
+.challenge-progress { margin-top: 18px; color: #1f5f94; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.challenge-result { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #a9c9e2; border-radius: 6px; background: #e4eff8; color: #244967; font-size: 13px; }
+.challenge-actions { align-items: flex-end; }
+.quiz-buttons { display: flex; align-items: center; gap: 8px; }
+.quiz-buttons .outline-button, .quiz-buttons .dark-button { min-width: 112px; padding: 10px 12px; }

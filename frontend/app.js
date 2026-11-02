@@ -1,4 +1,4 @@
-const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null, learning: null };
+const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null, learning: null, quiz: null };
 const panels = [...document.querySelectorAll("[data-panel]")];
 const navItems = [...document.querySelectorAll("[data-view]")];
 const breadcrumb = document.querySelector("#breadcrumb-current");
@@ -141,7 +141,11 @@ function applyLearning(learning) {
     trend.classList.toggle("up", delta >= 0);
     trend.classList.toggle("neutral", delta < 0);
   }
-  if (note) note.innerHTML = learning.completed_today ? "Today’s challenge is complete. Keep the streak alive tomorrow." : "Complete one article challenge today to start or continue your streak.";
+  if (note) {
+    note.innerHTML = learning.completed_today
+      ? `Today’s 3-question quiz is complete${learning.quiz_score == null ? "" : ` · ${learning.quiz_score}/100`}. Keep the streak alive tomorrow.`
+      : "Complete today’s 3-question quiz to start or continue your streak.";
+  }
   if (days) days.innerHTML = (learning.completed_days || []).map((complete, index, values) => `<span class="${complete ? "done" : ""} ${index === values.length - 1 ? "today" : ""}"></span>`).join("");
 }
 
@@ -149,13 +153,39 @@ function showLearningChallenge(learning) {
   state.learning = learning;
   const challenge = learning.challenge || {};
   document.querySelector("#challenge-source").textContent = `Grounded article · ${challenge.source_title || "today’s technical brief"} · ${challenge.source || "source"}`;
-  document.querySelector("#challenge-prompt").textContent = challenge.prompt || "Choose one technical idea from today’s brief and explain how you would apply it safely.";
-  document.querySelector("#challenge-answer").value = "";
-  const completeButton = document.querySelector("#complete-learning");
-  completeButton.innerHTML = "Complete challenge <span>↗</span>";
-  completeButton.disabled = Boolean(learning.completed_today);
+  state.quiz = { questions: challenge.questions || [{ prompt: challenge.prompt || "Choose one technical idea from today’s brief and explain how you would apply it safely." }], answers: [], index: 0 };
+  const result = document.querySelector("#challenge-result");
+  if (result) {
+    result.hidden = !learning.completed_today;
+    result.textContent = learning.completed_today ? `Today’s quiz is already complete${learning.quiz_score == null ? "" : ` · score ${learning.quiz_score}/100`}.` : "";
+  }
+  renderQuizQuestion();
   document.querySelector("#challenge-modal").hidden = false;
   document.querySelector("#challenge-answer").focus();
+}
+
+function renderQuizQuestion() {
+  const quiz = state.quiz;
+  if (!quiz) return;
+  const question = quiz.questions[quiz.index] || quiz.questions[0];
+  const completed = Boolean(state.learning?.completed_today);
+  const progress = document.querySelector("#challenge-progress");
+  const prompt = document.querySelector("#challenge-prompt");
+  const answer = document.querySelector("#challenge-answer");
+  const previous = document.querySelector("#quiz-previous");
+  const next = document.querySelector("#complete-learning");
+  if (progress) progress.textContent = `Question ${quiz.index + 1} of ${quiz.questions.length}`;
+  if (prompt) prompt.textContent = question.prompt;
+  if (answer) {
+    answer.value = quiz.answers[quiz.index] || "";
+    answer.disabled = completed;
+    answer.placeholder = `Write at least 20 characters. Use details from the article, then explain your reasoning.`;
+  }
+  if (previous) previous.disabled = completed || quiz.index === 0;
+  if (next) {
+    next.disabled = completed;
+    next.innerHTML = quiz.index === quiz.questions.length - 1 ? "Submit quiz <span>↗</span>" : "Next question <span>↗</span>";
+  }
 }
 
 async function syncDashboard() {
@@ -223,23 +253,39 @@ document.querySelectorAll("[data-close-challenge]").forEach((element) => {
   element.addEventListener("click", () => { document.querySelector("#challenge-modal").hidden = true; });
 });
 
+document.querySelector("#quiz-previous")?.addEventListener("click", () => {
+  if (!state.quiz || state.quiz.index === 0) return;
+  state.quiz.answers[state.quiz.index] = document.querySelector("#challenge-answer").value.trim();
+  state.quiz.index -= 1;
+  renderQuizQuestion();
+  document.querySelector("#challenge-answer").focus();
+});
+
 document.querySelector("#complete-learning")?.addEventListener("click", async (event) => {
+  if (!state.quiz || state.learning?.completed_today) return;
   const answer = document.querySelector("#challenge-answer").value.trim();
+  state.quiz.answers[state.quiz.index] = answer;
   if (answer.length < 20) {
-    showToast("Write at least 20 characters to complete today’s challenge.");
+    showToast("Write at least 20 characters for this question before continuing.");
+    return;
+  }
+  if (state.quiz.index < state.quiz.questions.length - 1) {
+    state.quiz.index += 1;
+    renderQuizQuestion();
+    document.querySelector("#challenge-answer").focus();
     return;
   }
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "Saving…";
   try {
-    const result = await apiRequest("/api/learning/complete", { method: "POST", body: JSON.stringify({ article_id: state.learning?.challenge?.source_article_id || null, answer }) });
+    const result = await apiRequest("/api/learning/complete", { method: "POST", body: JSON.stringify({ article_id: state.learning?.challenge?.source_article_id || null, answers: state.quiz.answers }) });
     applyLearning(result.learning);
     document.querySelector("#challenge-modal").hidden = true;
-    showToast(`Learning day complete · ${result.learning.streak_days}-day streak.`);
+    showToast(`Quiz complete · ${result.learning.quiz_score}/100 · ${result.learning.streak_days}-day streak.`);
   } catch (error) {
     button.disabled = false;
-    button.innerHTML = 'Complete challenge <span>↗</span>';
+    renderQuizQuestion();
     showToast("The challenge could not be saved. Try again.");
   }
 });
