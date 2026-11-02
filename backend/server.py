@@ -7,14 +7,15 @@ replace the deterministic extractive/evaluation fallbacks with model-backed work
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import html
 import json
 import os
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.parse
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -31,7 +32,9 @@ PORT = int(os.getenv("PORT", "4173"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/responses")
+SCAN_INTERVAL_HOURS = float(os.getenv("SCAN_INTERVAL_HOURS", "24"))
 STATE_LOCK = threading.Lock()
+SCHEDULER_STOP = threading.Event()
 
 
 def now_iso() -> str:
@@ -52,100 +55,6 @@ def read_profile() -> dict:
     return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
 
 
-SEED_ARTICLES = [
-    {
-        "id": "durable-execution-reliability-primitive",
-        "lane": "general_ai_development",
-        "tag": "FRONTIER LABS",
-        "source": "Temporal Engineering",
-        "title": "Why durable execution is becoming the new reliability primitive",
-        "summary": "Long-running agent workflows fail differently from request/response services: they must survive retries, worker restarts, partial tool calls, and human handoffs. Durable execution frameworks externalize progress so the workflow can resume from the last safe checkpoint instead of starting over.",
-        "takeaways": ["Checkpoint every side effect before moving to the next step.", "Make retries idempotent so recovery does not create duplicate work.", "Trace state transitions, not just individual service calls."],
-        "why_it_matters": "SREs who can reason about failure across async systems will be well-positioned to operate agentic platforms.",
-        "read_time": "7 min read",
-        "published_at": "2026-11-01",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-    {
-        "id": "platform-team-mindset-kubernetes",
-        "lane": "sre_devops_support",
-        "tag": "GOOGLE CLOUD",
-        "source": "Google Cloud Blog",
-        "title": "Operating Kubernetes with a platform team mindset",
-        "summary": "Platform engineering is moving beyond a collection of internal tools. The strongest teams build paved roads with clear ownership, observable service-level signals, and enough guardrails to reduce cognitive load without hiding operational reality.",
-        "takeaways": ["Measure platform adoption and developer friction, not tool count.", "Offer a safe default path while keeping escape hatches visible.", "Treat internal platforms like products with feedback loops."],
-        "why_it_matters": "Use your support background as an advantage: document one paved road that would make a recurring handoff easier for developers.",
-        "read_time": "5 min read",
-        "published_at": "2026-11-01",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-    {
-        "id": "model-call-production-incident",
-        "lane": "general_ai_development",
-        "tag": "OPENAI",
-        "source": "OpenAI Engineering",
-        "title": "Tracing the path from model call to production incident",
-        "summary": "Observability for AI systems needs to connect model calls, tool use, prompt and policy decisions, cost, latency, and human escalation into one incident story. A single request trace is not enough when the system can branch, retry, or ask for help.",
-        "takeaways": ["Correlate model, tool, and infrastructure spans in one trace.", "Track quality and cost signals beside latency and errors.", "Make human escalation an observable state transition."],
-        "why_it_matters": "Sketch the trace context you would want during an incident involving a model call, a tool timeout, and a manual escalation.",
-        "read_time": "9 min read",
-        "published_at": "2026-11-01",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-    {
-        "id": "sre-error-budgets-and-change",
-        "lane": "sre_devops_support",
-        "tag": "SRE",
-        "source": "SRE practice note",
-        "title": "Error budgets are a decision system, not a dashboard tile",
-        "summary": "An error budget becomes useful when it changes what the team does next: slow risky releases, prioritize reliability work, or accept a known tradeoff. The operational habit is to connect the budget to explicit service ownership and review rituals.",
-        "takeaways": ["Define the decision an SLO breach should trigger.", "Pair reliability work with a measurable user impact.", "Review changes and incidents together instead of in separate queues."],
-        "why_it_matters": "Your production support experience is a strong base for practicing how reliability signals influence prioritization.",
-        "read_time": "6 min read",
-        "published_at": "2026-10-31",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-    {
-        "id": "evaluation-loops-agent-systems",
-        "lane": "general_ai_development",
-        "tag": "ANTHROPIC",
-        "source": "Frontier AI research",
-        "title": "Evaluation loops for tool-using AI systems",
-        "summary": "Agent quality cannot be measured only by whether a final answer looks correct. Evaluation needs traces, tool outcomes, retries, policy decisions, and human review so teams can identify where the system failed and whether a fix generalizes.",
-        "takeaways": ["Evaluate intermediate steps as well as final outputs.", "Keep representative failure cases in a regression set.", "Separate model quality from tool and orchestration quality."],
-        "why_it_matters": "This is a bridge between your RAG project experience and the operational discipline expected in AI infrastructure work.",
-        "read_time": "8 min read",
-        "published_at": "2026-10-30",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-    {
-        "id": "cloudwatch-incident-prioritization",
-        "lane": "sre_devops_support",
-        "tag": "AWS",
-        "source": "AWS DevOps",
-        "title": "From CloudWatch signal to a calmer incident response",
-        "summary": "The first minutes of an incident are a prioritization problem. Strong responders combine customer impact, change history, dependency health, and the quality of the signal before choosing rollback, mitigation, or escalation.",
-        "takeaways": ["Start with impact and blast radius, then investigate cause.", "Use change history as a high-value hypothesis, not a conclusion.", "Make the next update time explicit for the people coordinating response."],
-        "why_it_matters": "Your Amazon Ads on-call experience maps directly to this pattern and is a strong interview story to sharpen.",
-        "read_time": "5 min read",
-        "published_at": "2026-10-29",
-        "summary_mode": "seeded_demo",
-        "source_type": "seeded_demo",
-        "grounded": False,
-    },
-]
-
-
 COMPETENCIES = [
     {"key": "operational_response", "label": "Operational execution", "weight": 0.30},
     {"key": "aws_cloud", "label": "Systems, cloud, and networking", "weight": 0.25},
@@ -156,7 +65,7 @@ COMPETENCIES = [
 
 
 def default_state() -> dict:
-    return {"articles": copy.deepcopy(SEED_ARTICLES), "answers": [], "runs": [], "updated_at": now_iso()}
+    return {"articles": [], "answers": [], "runs": [], "updated_at": now_iso()}
 
 
 def load_state() -> dict:
@@ -164,14 +73,13 @@ def load_state() -> dict:
         return default_state()
     try:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
-        state.setdefault("articles", copy.deepcopy(SEED_ARTICLES))
+        state.setdefault("articles", [])
         state.setdefault("answers", [])
         state.setdefault("runs", [])
+        state["articles"] = [article for article in state["articles"] if article.get("reference") and article.get("grounded", True)]
         for article in state["articles"]:
-            if "grounded" not in article:
-                article["grounded"] = bool(article.get("reference"))
-            if "source_type" not in article:
-                article["source_type"] = "rss_atom" if article.get("reference") else "seeded_demo"
+            article["grounded"] = True
+            article["source_type"] = article.get("source_type", "rss_atom")
         return state
     except (OSError, json.JSONDecodeError):
         return default_state()
@@ -249,11 +157,20 @@ def element_text(element: ET.Element, names: tuple[str, ...]) -> str:
     return ""
 
 
+def fetch_article_text(url: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": "DailyTechUpgradeAgent/0.1"})
+    with urllib.request.urlopen(request, timeout=6) as response:
+        raw = response.read(500_000).decode("utf-8", errors="replace")
+    text = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<noscript[\s\S]*?</noscript>", " ", raw, flags=re.IGNORECASE)
+    text = clean_text(text)
+    return text[:16000]
+
+
 def fetch_feed(url: str, lane: str) -> list[dict]:
     request = urllib.request.Request(url, headers={"User-Agent": "DailyTechUpgradeAgent/0.1"})
     with urllib.request.urlopen(request, timeout=12) as response:
         root = ET.fromstring(response.read())
-    items = []
+    raw_items = []
     for item in root.iter():
         if item.tag.rsplit("}", 1)[-1].lower() not in {"item", "entry"}:
             continue
@@ -264,18 +181,39 @@ def fetch_feed(url: str, lane: str) -> list[dict]:
             for child in list(item):
                 if child.tag.rsplit("}", 1)[-1].lower() == "link":
                     link = child.attrib.get("href", "")
-        if not title:
+        if not title or not link:
             continue
-        source = urllib.parse.urlparse(url).netloc.replace("www.", "")
+        raw_items.append({"title": title, "description": description, "link": link})
+
+    page_texts = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(fetch_article_text, item["link"]): item["link"] for item in raw_items}
+        for future in as_completed(futures):
+            link = futures[future]
+            try:
+                page_texts[link] = future.result()
+            except (OSError, ValueError, urllib.error.URLError):
+                page_texts[link] = ""
+
+    items = []
+    source = urllib.parse.urlparse(url).netloc.replace("www.", "")
+    for raw in raw_items:
+        title, description, link = raw["title"], raw["description"], raw["link"]
+        article_text = page_texts.get(link) or description
+        if not article_text:
+            continue
         article_id = hashlib.sha1(f"{title}{link}".encode()).hexdigest()[:14]
-        summary = summarize_article(title, source, description)
-        items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], "source_type": "rss_atom", "grounded": True, **summary})
+        grounding_basis = "article_page" if page_texts.get(link) else "feed_entry"
+        summary = summarize_article(title, source, article_text)
+        items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], "source_type": "rss_atom", "grounded": True, "grounding_basis": grounding_basis, **summary})
     return items[:8]
 
 
 def ingest_sources(state: dict, lanes: list[str]) -> dict:
     existing_ids = {article["id"] for article in state["articles"]}
+    existing_articles = {article["id"]: article for article in state["articles"]}
     fetched = 0
+    refreshed = 0
     failures = []
     for lane in lanes:
         for url in feed_urls().get(lane, []):
@@ -285,12 +223,49 @@ def ingest_sources(state: dict, lanes: list[str]) -> dict:
                         state["articles"].insert(0, article)
                         existing_ids.add(article["id"])
                         fetched += 1
+                    elif existing_articles[article["id"]].get("grounding_basis") != "article_page":
+                        index = next(index for index, current in enumerate(state["articles"]) if current["id"] == article["id"])
+                        state["articles"][index] = article
+                        refreshed += 1
             except Exception as error:
                 failures.append({"url": url, "error": str(error)})
-    run = {"id": f"run-{len(state['runs']) + 1:03d}", "completed_at": now_iso(), "lanes": lanes, "fetched": fetched, "failures": failures, "mode": "openai_responses" if OPENAI_API_KEY else "fallback_summaries"}
+    run = {"id": f"run-{len(state['runs']) + 1:03d}", "completed_at": now_iso(), "lanes": lanes, "fetched": fetched, "refreshed": refreshed, "failures": failures, "mode": "openai_responses" if OPENAI_API_KEY else "fallback_summaries"}
     state["runs"].insert(0, run)
     state["updated_at"] = run["completed_at"]
     return run
+
+
+def scan_is_due(state: dict) -> bool:
+    if not state.get("runs"):
+        return True
+    try:
+        last_scan = datetime.fromisoformat(state["runs"][0]["completed_at"])
+        age_seconds = (datetime.now(timezone.utc) - last_scan).total_seconds()
+        return age_seconds >= SCAN_INTERVAL_HOURS * 3600
+    except (KeyError, TypeError, ValueError):
+        return True
+
+
+def run_scan(lanes: list[str]) -> dict:
+    with STATE_LOCK:
+        state = load_state()
+        run = ingest_sources(state, lanes)
+        save_state(state)
+    return run
+
+
+def scheduled_scan_loop() -> None:
+    lanes = ["general_ai_development", "sre_devops_support"]
+    while not SCHEDULER_STOP.is_set():
+        with STATE_LOCK:
+            due = scan_is_due(load_state())
+        if due:
+            try:
+                run_scan(lanes)
+            except Exception as error:
+                print(f"Scheduled scan failed: {error}")
+        if SCHEDULER_STOP.wait(60):
+            break
 
 
 def readiness_report(state: dict) -> dict:
@@ -338,7 +313,7 @@ def dashboard() -> dict:
     with STATE_LOCK:
         state = load_state()
     articles = state["articles"]
-    return {"profile": read_profile(), "readiness": readiness_report(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"live_source_articles": sum(1 for article in articles if article.get("grounded")), "seeded_demo_articles": sum(1 for article in articles if article.get("source_type") == "seeded_demo"), "note": "Only RSS/Atom items with a reference URL are source-grounded. Seeded demo cards are illustrative until replaced by a live scan."}}
+    return {"profile": read_profile(), "readiness": readiness_report(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"source_grounded_articles": sum(1 for article in articles if article.get("grounded")), "article_page_summaries": sum(1 for article in articles if article.get("grounding_basis") == "article_page"), "feed_entry_summaries": sum(1 for article in articles if article.get("grounding_basis") == "feed_entry"), "note": "Every article returned by this API has a source URL and is summarized from fetched source text."}, "scheduler": {"enabled": True, "interval_hours": SCAN_INTERVAL_HOURS}}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -393,10 +368,7 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/scan":
             payload = self.read_json()
             lanes = payload.get("lanes", ["general_ai_development", "sre_devops_support"])
-            with STATE_LOCK:
-                state = load_state()
-                run = ingest_sources(state, lanes)
-                save_state(state)
+            run = run_scan(lanes)
             return self.send_json({"run": run, "dashboard": dashboard()})
         if parsed.path == "/api/assessments":
             payload = self.read_json()
@@ -420,6 +392,11 @@ def main():
     os.chdir(FRONTEND_ROOT)
     print(f"DailyTechUpgradeAgent backend running at http://localhost:{PORT}")
     print(f"OpenAI Responses integration: {'enabled' if OPENAI_API_KEY else 'disabled (fallback mode)'}")
+    print(f"Automatic source scan: every {SCAN_INTERVAL_HOURS:g} hours")
+    with STATE_LOCK:
+        save_state(load_state())
+    threading.Thread(target=scheduled_scan_loop, name="daily-source-scan", daemon=True).start()
+    print("Automatic source scan queued in the background")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 

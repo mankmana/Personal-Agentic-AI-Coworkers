@@ -33,7 +33,11 @@ Both lanes use the same pipeline, but relevance and challenge generation are per
 
 ## Source grounding
 
-Seed cards are demo fixtures and carry `source_type: seeded_demo` and `grounded: false`. A successful RSS/Atom ingestion creates `source_type: rss_atom`, retains the feed item's `reference` URL, and marks the item as grounded. The UI exposes this distinction so a demo summary is not presented as a cited article.
+The backend does not serve seeded article cards. A successful RSS/Atom ingestion creates `source_type: rss_atom`, retains the feed item's `reference` URL, fetches the linked article page when possible, and records `grounding_basis` as `article_page` or `feed_entry`. Every article returned by the API has a source URL and is marked grounded.
+
+## Daily refresh
+
+`POST /api/scan` performs an immediate scan for the selected lanes. On startup, the server scans if the last run is older than `SCAN_INTERVAL_HOURS` (24 hours by default). A daemon scheduler checks once per minute and runs the same scan when the interval is due. Set `SCAN_INTERVAL_HOURS` to change the cadence.
 
 ## Local state
 

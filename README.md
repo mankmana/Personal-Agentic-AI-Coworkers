@@ -22,7 +22,7 @@ Then open [http://localhost:4173](http://localhost:4173).
 - Overview dashboard with readiness, momentum, and a daily top-three technical brief. Relevant opportunities are intentionally reserved for `NextLevelPersonalCoachForCareerLevel` and are not part of this coworker.
 - Personalized profile derived from career-relevant resume evidence; contact details are intentionally excluded from the repo.
 - Two content lanes: general AI development and SRE / DevOps / software support.
-- RSS/Atom ingestion with live-source support and deterministic extractive fallback summaries. Live items retain their source URL; the six initial cards are clearly marked as seeded demo content until a scan replaces them.
+- Source-grounded RSS/Atom ingestion. Every article returned by the backend has a source URL and is summarized from fetched feed or article-page text; the service does not serve seeded article cards.
 - Optional OpenAI Responses API adapter for model-backed summaries and evaluations when `OPENAI_API_KEY` is configured.
 - Career lab with generated technical challenges, answer evaluation, and persisted readiness updates.
 - JSON-backed local state for runs, answers, and progress; replace with Postgres in production.
@@ -48,7 +48,7 @@ curl -X POST http://localhost:4173/api/scan \
   -d '{"lanes":["general_ai_development","sre_devops_support"]}'
 ```
 
-The live source lanes are configurable in `.env`; start from `config/.env.example`. The general lane currently watches official OpenAI News and Google AI feeds. The domain lane currently watches the AWS DevOps and Google Cloud management-tools feeds. A scan fetches titles, descriptions, publication signals, and source links; summaries are generated from that fetched text, using the OpenAI Responses API when configured or a local extractive fallback otherwise. Without a successful scan, the service returns seeded demo articles and labels them as not source-grounded.
+The live source lanes are configurable in `.env`; start from `config/.env.example`. The general lane currently watches official OpenAI News and Google AI feeds. The domain lane currently watches the AWS DevOps and Google Cloud management-tools feeds. A scan fetches titles, descriptions, publication signals, source links, and article-page text when available; summaries are generated from that fetched text, using the OpenAI Responses API when configured or a local extractive fallback otherwise. The manual scan button remains available, and the backend also runs a startup scan when the last run is older than `SCAN_INTERVAL_HOURS` (24 by default), followed by a background daily check.
 
 ## Next integration seam
 
