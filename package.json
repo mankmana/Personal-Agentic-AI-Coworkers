@@ -4,7 +4,8 @@
   "private": true,
   "description": "A front-end prototype for personal agentic AI career coworkers.",
   "scripts": {
-    "dev": "python3 -m http.server 4173",
-    "start": "python3 -m http.server 4173"
+    "dev": "python3 backend/server.py",
+    "start": "python3 backend/server.py",
+    "frontend-only": "python3 -m http.server 4173"
   }
 }

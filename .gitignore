@@ -1,0 +1,4 @@
+backend/data/state.json
+.env
+__pycache__/
+*.pyc

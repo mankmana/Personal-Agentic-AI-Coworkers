@@ -1,0 +1,62 @@
+{
+  "name": "Manali Mankad",
+  "headline": "DevOps Engineer growing toward SRE / Platform Engineering",
+  "target_roles": [
+    "Site Reliability Engineer",
+    "DevOps Engineer",
+    "Platform Engineer",
+    "Cloud Operations Engineer",
+    "AI Infrastructure Engineer"
+  ],
+  "focus_lanes": ["general_ai_development", "sre_devops_support"],
+  "experience": [
+    {
+      "company": "Amazon Ads",
+      "role": "DevOps Engineer III / IV",
+      "period": "2022-2024",
+      "evidence": [
+        "Built API automation that cleared 200K ads in four hours and saved 1,200 manual-review hours.",
+        "Served as on-call point of contact for four critical services and investigated Sev2 incidents with CloudWatch.",
+        "Performed code-level debugging, data analysis, and cross-service dependency investigations.",
+        "Upgraded vulnerable dependencies, ran test and integration suites, and deployed fixes.",
+        "Supported high-volume Prime Day, Black Friday, and Cyber Monday operations."
+      ]
+    },
+    {
+      "company": "Accenture",
+      "role": "Application Development Analyst / Senior Analyst",
+      "period": "2020-2022",
+      "evidence": [
+        "Led a three-person team delivering portal enhancements and support.",
+        "Served as client point of contact while balancing operational priorities, maintenance, and feature work."
+      ]
+    },
+    {
+      "company": "Infosys",
+      "role": "Systems Engineer / Senior Systems Engineer",
+      "period": "2017-2020",
+      "evidence": [
+        "Led Red Hat, JBoss, Tomcat, and Oracle migrations with L4 support for regulated systems.",
+        "Built FTP-driven user-provisioning automation using backend APIs during downtime."
+      ]
+    }
+  ],
+  "skills": {
+    "programming": ["Java", "Python", "Shell", "AWS CLI", "REST APIs", "SOAP APIs"],
+    "cloud_infrastructure": ["AWS EC2", "S3", "DynamoDB", "IAM", "Redshift", "Lambda", "CloudWatch", "SQS", "Red Hat"],
+    "data": ["SQL", "Oracle"],
+    "operations": ["JIRA", "ServiceNow", "Git/SVN", "CI/CD", "Change Management", "On-call incident response"]
+  },
+  "projects": [
+    "Multi-agent RAG assistant with specialized technical and clinical agents.",
+    "AI-assisted internship discovery workflow that collects and organizes openings for review."
+  ],
+  "education": ["M.S. Software Engineering, San Jose State University (in progress)", "B.Tech Computer Engineering, Dharamsinh Desai University"],
+  "baseline_competencies": {
+    "incident_response": 68,
+    "aws_cloud": 78,
+    "automation_iac": 76,
+    "reliability_systems": 64,
+    "communication": 75
+  }
+}
