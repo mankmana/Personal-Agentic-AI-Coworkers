@@ -24,11 +24,19 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from opportunity_agent import dashboard as opportunity_dashboard
+from opportunity_agent import evaluate_response as evaluate_opportunity_response
+from opportunity_agent import load_state as load_opportunity_state
+from opportunity_agent import preparation_for as opportunity_preparation
+from opportunity_agent import save_state as save_opportunity_state
+from opportunity_agent import scan as scan_opportunities
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
 DATA_DIR = ROOT / "backend" / "data"
 STATE_PATH = Path(os.getenv("STATE_PATH", str(DATA_DIR / "state.json")))
+OPPORTUNITY_STATE_PATH = Path(os.getenv("OPPORTUNITY_STATE_PATH", str(DATA_DIR / "opportunities.json")))
 PROFILE_PATH = ROOT / "backend" / "profile.json"
 PORT = int(os.getenv("PORT", "4173"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -399,6 +407,16 @@ def scheduled_scan_loop() -> None:
                 run_scan(lanes)
             except Exception as error:
                 print(f"Scheduled scan failed: {error}")
+        with STATE_LOCK:
+            opportunity_due = scan_is_due(load_opportunity_state(OPPORTUNITY_STATE_PATH))
+        if opportunity_due:
+            try:
+                with STATE_LOCK:
+                    opportunity_state = load_opportunity_state(OPPORTUNITY_STATE_PATH)
+                    scan_opportunities(opportunity_state)
+                    save_opportunity_state(OPPORTUNITY_STATE_PATH, opportunity_state)
+            except Exception as error:
+                print(f"Scheduled opportunity scan failed: {error}")
         if SCHEDULER_STOP.wait(60):
             break
 
@@ -601,6 +619,9 @@ class Handler(SimpleHTTPRequestHandler):
                 stored_articles = load_state()["articles"]
             articles = stored_articles if lane == "all" else [article for article in stored_articles if article["lane"] == lane]
             return self.send_json({"articles": articles, "lane": lane})
+        if parsed.path == "/api/opportunities":
+            with STATE_LOCK:
+                return self.send_json(opportunity_dashboard(load_opportunity_state(OPPORTUNITY_STATE_PATH)))
         if parsed.path == "/api/learning":
             with STATE_LOCK:
                 return self.send_json(learning_stats(load_state()))
@@ -616,6 +637,51 @@ class Handler(SimpleHTTPRequestHandler):
             lanes = payload.get("lanes", ["general_ai_development", "sre_devops_support"])
             run = run_scan(lanes)
             return self.send_json({"run": run, "dashboard": dashboard()})
+        if parsed.path == "/api/opportunities/scan":
+            with STATE_LOCK:
+                state = load_opportunity_state(OPPORTUNITY_STATE_PATH)
+                run = scan_opportunities(state)
+                save_opportunity_state(OPPORTUNITY_STATE_PATH, state)
+                return self.send_json({"run": run, "dashboard": opportunity_dashboard(state)})
+        if parsed.path == "/api/opportunities/select":
+            payload = self.read_json()
+            with STATE_LOCK:
+                state = load_opportunity_state(OPPORTUNITY_STATE_PATH)
+                job_id = payload.get("job_id")
+                if not any(job.get("id") == job_id for job in state["opportunities"]):
+                    return self.send_json({"error": "Opportunity not found."}, 404)
+                state["selected_id"] = job_id
+                state["updated_at"] = now_iso()
+                save_opportunity_state(OPPORTUNITY_STATE_PATH, state)
+                return self.send_json(opportunity_dashboard(state))
+        if parsed.path == "/api/opportunities/status":
+            payload = self.read_json()
+            with STATE_LOCK:
+                state = load_opportunity_state(OPPORTUNITY_STATE_PATH)
+                job = next((item for item in state["opportunities"] if item.get("id") == payload.get("job_id")), None)
+                if not job:
+                    return self.send_json({"error": "Opportunity not found."}, 404)
+                job["status"] = payload.get("status", "saved")
+                state["updated_at"] = now_iso()
+                save_opportunity_state(OPPORTUNITY_STATE_PATH, state)
+                return self.send_json(opportunity_dashboard(state))
+        if parsed.path == "/api/opportunities/answer":
+            payload = self.read_json()
+            answer = clean_text(payload.get("answer", ""))
+            if len(answer) < 20:
+                return self.send_json({"error": "Write at least 20 characters so the response can be evaluated."}, 400)
+            with STATE_LOCK:
+                state = load_opportunity_state(OPPORTUNITY_STATE_PATH)
+                job = next((item for item in state["opportunities"] if item.get("id") == payload.get("job_id")), None)
+                if not job:
+                    return self.send_json({"error": "Opportunity not found."}, 404)
+                result = evaluate_opportunity_response(payload.get("prompt", ""), answer)
+                result.update({"job_id": job["id"], "prompt": payload.get("prompt", ""), "answer": answer, "submitted_at": now_iso()})
+                state["activities"].append(result)
+                state["selected_id"] = job["id"]
+                state["updated_at"] = result["submitted_at"]
+                save_opportunity_state(OPPORTUNITY_STATE_PATH, state)
+                return self.send_json({"result": result, "dashboard": opportunity_dashboard(state)})
         if parsed.path == "/api/assessments":
             payload = self.read_json()
             answer = clean_text(payload.get("answer", ""))
@@ -653,6 +719,7 @@ def main():
     print(f"Automatic source scan: every {SCAN_INTERVAL_HOURS:g} hours")
     with STATE_LOCK:
         save_state(load_state())
+        save_opportunity_state(OPPORTUNITY_STATE_PATH, load_opportunity_state(OPPORTUNITY_STATE_PATH))
     threading.Thread(target=scheduled_scan_loop, name="daily-source-scan", daemon=True).start()
     print("Automatic source scan queued in the background")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

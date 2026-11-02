@@ -31,6 +31,8 @@ Both lanes use the same pipeline, but relevance and challenge generation are per
 
 `DailyTechUpgradeAgent` owns technical signals, article summaries, article-grounded challenges, and readiness evidence. It does not collect or rank jobs, internships, research roles, or entrepreneurial opportunities. Those opportunity workflows belong to `NextLevelPersonalCoachForCareerLevel`.
 
+`NextLevelPersonalCoachForCareerLevel` stores its own opportunity state in `backend/data/opportunities.json`, filters postings against the target internship roles and resume skills, generates a preparation plan for a selected posting, evaluates practice answers, and records saved/applied/preparation activity. Its first source adapter accepts public RSS/Atom or employer ATS feeds configured with `JOB_FEEDS`. It does not bypass authentication or anti-bot controls on LinkedIn, Indeed, or Glassdoor.
+
 ## Source grounding
 
 The backend does not serve seeded article cards. A successful RSS/Atom ingestion creates `source_type: rss_atom`; official Anthropic and Meta article-index ingestion creates `source_type: html_index`. Both retain the source `reference` URL, fetch linked article-page text when possible, and record `grounding_basis` as `article_page` or `feed_entry`. Every article returned by the API has a source URL and is marked grounded.

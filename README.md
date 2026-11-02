@@ -3,7 +3,7 @@
 A small career operating system for two career-focused AI coworkers:
 
 1. **DailyTechUpgradeAgent** — the active coworker that watches the SRE, DevOps, and software support landscape, turns technical signals into a daily brief, and coaches you toward your next opportunity.
-2. **NextLevelPersonalCoachForCareerLevel** — the planned second coworker for broader career planning and accountability.
+2. **NextLevelPersonalCoachForCareerLevel** — the opportunity scout and interview-preparation coworker for internship searches and progress tracking.
 
 The first coworker now has a working stdlib-only backend with seeded profile data, source ingestion, article summaries, challenges, assessment scoring, and a readiness report. The second coworker remains queued for a later phase.
 
@@ -27,6 +27,8 @@ Then open [http://localhost:4173](http://localhost:4173).
 - Article-based daily challenge with persisted learning completions.
 - Real learning momentum tracking: one grounded article challenge per day, completion history, and a calculated streak.
 - JSON-backed local state for runs, answers, and progress; replace with Postgres in production.
+- Opportunity scout with resume-aligned internship role matching, source links, preparation plans, coding exercises, interview scenarios, answer evaluation, and saved/applied progress.
+- Compliant job-source boundary: configure public RSS/Atom or employer ATS feeds through `JOB_FEEDS`. LinkedIn, Indeed, and Glassdoor should be connected through an official API, export, or alert feed instead of bypassing access controls.
 
 ## API surface
 
@@ -38,7 +40,12 @@ GET  /api/articles?lane=general_ai_development|sre_devops_support|all
 GET  /api/report
 GET  /api/challenges/next?article_id=...
 GET  /api/learning
+GET  /api/opportunities
 POST /api/scan
+POST /api/opportunities/scan
+POST /api/opportunities/select
+POST /api/opportunities/status
+POST /api/opportunities/answer
 POST /api/assessments
 POST /api/learning/complete
 ```

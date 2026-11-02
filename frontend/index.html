@@ -21,7 +21,7 @@
         <div class="sidebar-section">
           <p class="eyebrow sidebar-label">Your coworkers</p>
           <button class="agent-card active" type="button" data-agent="daily"><span class="agent-avatar teal">DT</span><span class="agent-copy"><strong>DailyTechUpgrade</strong><small>active · scanning now</small></span><span class="live-dot"></span></button>
-          <button class="agent-card muted-agent" type="button" data-agent="coach"><span class="agent-avatar violet">NC</span><span class="agent-copy"><strong>NextLevel Coach</strong><small>coming next</small></span><span class="lock-icon">✦</span></button>
+          <button class="agent-card muted-agent" type="button" data-agent="coach"><span class="agent-avatar violet">NC</span><span class="agent-copy"><strong>NextLevel Coach</strong><small>opportunity scout</small></span><span class="lock-icon">✦</span></button>
         </div>
 
         <nav class="main-nav" aria-label="Main navigation">
@@ -29,6 +29,7 @@
           <button class="nav-item active" type="button" data-view="overview"><span class="nav-icon">◒</span> Overview</button>
           <button class="nav-item" type="button" data-view="workflow"><span class="nav-icon">⌁</span> Agent workflow</button>
           <button class="nav-item" type="button" data-view="radar"><span class="nav-icon">◎</span> Technical radar <span class="nav-count">3</span></button>
+          <button class="nav-item" type="button" data-view="opportunities"><span class="nav-icon">△</span> Opportunity scout</button>
         </nav>
 
         <div class="sidebar-footer">
@@ -45,7 +46,7 @@
 
         <div class="page-wrap">
           <section class="page-heading">
-            <div><div class="heading-kicker"><span class="status-dot"></span> DAILYTECHUPGRADEAGENT <span class="slash">/</span> MORNING RUN</div><h1 id="page-title">Your technical edge,<br /><em>one day sharper.</em></h1><p class="page-subtitle">A focused read on the systems, signals, and skills that move your career forward.</p></div>
+            <div><div class="heading-kicker"><span class="status-dot"></span> <span id="agent-heading">DAILYTECHUPGRADEAGENT</span> <span class="slash">/</span> <span id="run-heading">MORNING RUN</span></div><h1 id="page-title">Your technical edge,<br /><em>one day sharper.</em></h1><p class="page-subtitle" id="page-subtitle">A focused read on the systems, signals, and skills that move your career forward.</p></div>
             <button id="run-button" class="primary-button" type="button"><span class="button-pulse"></span> Run daily scan <span class="button-arrow">↗</span></button>
           </section>
 
@@ -55,6 +56,8 @@
           <section class="metrics-grid" aria-label="Learning metrics">
             <article class="metric-card learning-card"><div class="metric-top"><span class="metric-label">Learning momentum</span><span class="metric-menu">•••</span></div><div class="metric-value-row"><strong id="learning-streak">00</strong><span>day streak</span><span class="trend up" id="learning-trend">↗ 0 days</span></div><div class="week-dots" id="learning-days" aria-label="Learning activity for the last seven days"></div><p class="metric-note" id="learning-note">Complete one article challenge today to start your streak.</p><button class="text-button" id="learning-challenge-button" type="button">Open today’s challenge <span>↗</span></button></article>
           </section>
+
+          <div class="view-panel" data-panel="opportunities"><section class="surface opportunity-surface"><div class="detail-header"><div><p class="eyebrow">NEXTLEVELPERSONALCOACHFORCAREERLEVEL · DAILY SCOUT</p><h2>Internships worth your next move</h2><p class="detail-intro">Matches your resume to Production Engineering, Customer Solutions, Technical Support, DevOps, and Production Support internships.</p></div><button class="primary-button" id="opportunity-scan" type="button"><span class="button-pulse"></span> Scan opportunities <span class="button-arrow">↗</span></button></div><div class="opportunity-status" id="opportunity-status">Loading opportunity sources…</div><div class="opportunity-layout"><section><div class="opportunity-section-heading"><div><p class="eyebrow">MATCHED FOR YOU</p><h3>Today’s postings</h3></div><span id="opportunity-count">0 matches</span></div><div class="opportunity-list" id="opportunity-list"></div></section><aside class="opportunity-detail" id="opportunity-detail"><div class="opportunity-empty"><span class="opportunity-empty-icon">△</span><h3>Select an opportunity</h3><p>The coach will show why it matches your resume and generate a preparation plan.</p></div></aside></div></section></div>
 
           <div class="view-panel active" data-panel="overview">
             <section class="dashboard-grid">

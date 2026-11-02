@@ -1,4 +1,5 @@
 backend/data/state.json
+backend/data/opportunities.json
 .env
 __pycache__/
 *.pyc

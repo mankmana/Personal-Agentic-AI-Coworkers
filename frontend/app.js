@@ -1,4 +1,4 @@
-const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null, learning: null, quiz: null };
+const state = { currentView: "overview", running: false, selectedArticle: 0, backendOnline: false, currentQuestion: null, learning: null, quiz: null, opportunities: null };
 const panels = [...document.querySelectorAll("[data-panel]")];
 const navItems = [...document.querySelectorAll("[data-view]")];
 const breadcrumb = document.querySelector("#breadcrumb-current");
@@ -15,9 +15,10 @@ async function apiRequest(path, options = {}) {
 const articleData = [];
 
 const titles = {
-  overview: { breadcrumb: "Overview", title: "Your technical edge,<br /><em>one day sharper.</em>" },
-  workflow: { breadcrumb: "Agent workflow", title: "See the loop,<br /><em>step by step.</em>" },
-  radar: { breadcrumb: "Technical radar", title: "Signals worth<br /><em>your attention.</em>" },
+  overview: { breadcrumb: "Overview", title: "Your technical edge,<br /><em>one day sharper.</em>", subtitle: "A focused read on the systems, signals, and skills that move your career forward." },
+  workflow: { breadcrumb: "Agent workflow", title: "See the loop,<br /><em>step by step.</em>", subtitle: "Follow how DailyTechUpgradeAgent turns technical signals into an improvement loop." },
+  radar: { breadcrumb: "Technical radar", title: "Signals worth<br /><em>your attention.</em>", subtitle: "Grounded developments across AI, research, SRE, DevOps, and software engineering." },
+  opportunities: { breadcrumb: "Opportunity scout", title: "Find your next<br /><em>career move.</em>", subtitle: "Find source-backed internships, prepare for the role, and track your progress." },
 };
 
 function showToast(message) {
@@ -43,22 +44,35 @@ function setView(view) {
   });
   breadcrumb.textContent = titles[view].breadcrumb;
   pageTitle.innerHTML = titles[view].title;
+  document.querySelector("#page-subtitle").textContent = titles[view].subtitle;
+  document.querySelector("#agent-heading").textContent = view === "opportunities" ? "NEXTLEVELPERSONALCOACHFORCAREERLEVEL" : "DAILYTECHUPGRADEAGENT";
+  document.querySelector("#run-heading").textContent = view === "opportunities" ? "DAILY OPPORTUNITY RUN" : "MORNING RUN";
+  runButton.hidden = view === "opportunities";
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 document.querySelectorAll("[data-view-target]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
-navItems.forEach((item) => item.addEventListener("click", () => setView(item.dataset.view)));
+navItems.forEach((item) => item.addEventListener("click", () => {
+  setView(item.dataset.view);
+  if (item.dataset.view === "opportunities") syncOpportunities();
+}));
 setView(state.currentView);
 
 document.querySelectorAll(".agent-card").forEach((agent) => {
   agent.addEventListener("click", () => {
     if (agent.dataset.agent === "coach") {
-      showToast("NextLevelPersonalCoachForCareerLevel is queued for phase two.");
+      document.querySelectorAll(".agent-card").forEach((item) => item.classList.remove("active"));
+      agent.classList.add("active");
+      setView("opportunities");
+      syncOpportunities();
       return;
     }
-    showToast("DailyTechUpgradeAgent is already your active coworker.");
+    document.querySelectorAll(".agent-card").forEach((item) => item.classList.remove("active"));
+    agent.classList.add("active");
+    setView("overview");
+    showToast("DailyTechUpgradeAgent is your active technical coworker.");
   });
 });
 
@@ -244,6 +258,92 @@ function renderQuizReview(learning) {
   }).join("");
 }
 
+async function syncOpportunities() {
+  try {
+    const data = await apiRequest("/api/opportunities");
+    state.opportunities = data;
+    renderOpportunities(data);
+  } catch {
+    showToast("The opportunity scout backend is unavailable.");
+  }
+}
+
+function renderOpportunities(data) {
+  const status = document.querySelector("#opportunity-status");
+  const count = document.querySelector("#opportunity-count");
+  const list = document.querySelector("#opportunity-list");
+  if (!list) return;
+  const jobs = data.opportunities || [];
+  if (status) {
+    status.textContent = data.source_status === "configured"
+      ? `${data.configured_sources.length} public source feeds configured · ${jobs.length} grounded internship matches`
+      : "No public job feeds configured yet. Add JOB_FEEDS in your environment, then run a scan. LinkedIn, Indeed, and Glassdoor should be connected through an official API, export, or alert feed.";
+  }
+  if (count) count.textContent = `${jobs.length} match${jobs.length === 1 ? "" : "es"}`;
+  if (!jobs.length) {
+    list.innerHTML = `<div class="opportunity-empty compact"><span class="opportunity-empty-icon">⌁</span><h3>No grounded postings yet</h3><p>The scout will only show source-backed opportunities after a compliant public feed is configured.</p></div>`;
+    document.querySelector("#opportunity-detail").innerHTML = `<div class="opportunity-empty"><span class="opportunity-empty-icon">△</span><h3>Preparation follows selection</h3><p>Once a grounded posting is found, select it to generate technical questions, a coding exercise, and an interview scenario.</p></div>`;
+    return;
+  }
+  list.innerHTML = jobs.map((job) => `<article class="opportunity-card ${data.selected?.id === job.id ? "selected" : ""}" data-opportunity-id="${escapeHtml(job.id)}"><div class="opportunity-card-top"><span class="tag tag-blue">${escapeHtml(job.source)}</span><strong>${job.match_score}% match</strong></div><h4>${escapeHtml(job.title)}</h4><p>${escapeHtml(job.why_match)}</p><div class="opportunity-card-footer"><span>${escapeHtml(job.matched_role)}</span><button class="text-button" type="button" data-select-opportunity="${escapeHtml(job.id)}">Prepare ↗</button></div></article>`).join("");
+  list.querySelectorAll("[data-select-opportunity]").forEach((button) => button.addEventListener("click", () => selectOpportunity(button.dataset.selectOpportunity)));
+  list.querySelectorAll(".opportunity-card").forEach((card) => card.addEventListener("click", (event) => {
+    if (!event.target.closest("button")) selectOpportunity(card.dataset.opportunityId);
+  }));
+  renderOpportunityDetail(data);
+}
+
+function renderOpportunityDetail(data) {
+  const detail = document.querySelector("#opportunity-detail");
+  const job = data.selected;
+  const prep = data.prep;
+  if (!detail || !job || !prep) return;
+  detail.innerHTML = `<div class="opportunity-detail-header"><div><p class="eyebrow">SELECTED OPPORTUNITY · ${escapeHtml(job.source)}</p><h3>${escapeHtml(job.title)}</h3><p>${escapeHtml(job.description || "Grounded job description available at the source.")}</p></div><strong class="match-score">${job.match_score}%</strong></div><div class="opportunity-detail-actions"><a class="text-button" href="${escapeHtml(job.reference)}" target="_blank" rel="noopener noreferrer">Open full posting ↗</a><button class="outline-button" data-opportunity-status="saved" type="button">Save</button><button class="outline-button" data-opportunity-status="applied" type="button">Mark applied</button></div><div class="prep-block"><p class="eyebrow">PERSONALIZED PREPARATION</p><h4>Technical questions</h4><ol>${prep.technical_questions.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ol><h4>Coding exercise</h4><p>${escapeHtml(prep.coding_exercise)}</p><h4>Interview scenario</h4><p>${escapeHtml(prep.interview_scenario)}</p><h4>Action plan</h4><ul>${prep.learning_plan.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul></div><div class="prep-response"><p class="eyebrow">PRACTICE WITH YOUR COACH</p><p id="prep-prompt">${escapeHtml(prep.technical_questions[0])}</p><textarea id="prep-answer" rows="4" placeholder="Answer with a concrete example, technical reasoning, and validation steps."></textarea><button class="dark-button" id="prep-submit" type="button">Evaluate my answer <span>↗</span></button><p class="prep-feedback" id="prep-feedback" hidden></p></div>`;
+  detail.querySelectorAll("[data-opportunity-status]").forEach((button) => button.addEventListener("click", () => updateOpportunityStatus(job.id, button.dataset.opportunityStatus)));
+  detail.querySelector("#prep-submit")?.addEventListener("click", () => submitPreparation(job.id, prep.technical_questions[0]));
+}
+
+async function selectOpportunity(jobId) {
+  try {
+    const data = await apiRequest("/api/opportunities/select", { method: "POST", body: JSON.stringify({ job_id: jobId }) });
+    state.opportunities = data;
+    renderOpportunities(data);
+  } catch {
+    showToast("This opportunity could not be selected.");
+  }
+}
+
+async function updateOpportunityStatus(jobId, status) {
+  try {
+    const data = await apiRequest("/api/opportunities/status", { method: "POST", body: JSON.stringify({ job_id: jobId, status }) });
+    state.opportunities = data;
+    renderOpportunities(data);
+    showToast(status === "applied" ? "Application progress saved." : "Opportunity saved for preparation.");
+  } catch {
+    showToast("The opportunity status could not be saved.");
+  }
+}
+
+async function submitPreparation(jobId, prompt) {
+  const answer = document.querySelector("#prep-answer")?.value.trim() || "";
+  if (answer.length < 20) {
+    showToast("Write at least 20 characters so the coach can evaluate your answer.");
+    return;
+  }
+  try {
+    const result = await apiRequest("/api/opportunities/answer", { method: "POST", body: JSON.stringify({ job_id: jobId, prompt, answer }) });
+    const feedback = document.querySelector("#prep-feedback");
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.textContent = `${result.result.score}/100 · ${result.result.feedback}`;
+    }
+    state.opportunities = result.dashboard;
+    showToast(`Preparation response evaluated · ${result.result.score}/100.`);
+  } catch {
+    showToast("The coach could not evaluate that response.");
+  }
+}
+
 async function syncDashboard() {
   try {
     const data = await apiRequest("/api/dashboard");
@@ -300,6 +400,23 @@ runButton.addEventListener("click", async () => {
       showToast("Scan preview complete · backend connection is not available.");
     }, 1200);
     return;
+  }
+});
+
+document.querySelector("#opportunity-scan")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.innerHTML = '<span class="button-pulse"></span> Scanning postings…';
+  try {
+    const result = await apiRequest("/api/opportunities/scan", { method: "POST", body: JSON.stringify({}) });
+    state.opportunities = result.dashboard;
+    renderOpportunities(result.dashboard);
+    showToast(`Opportunity scan complete · ${result.run.fetched} new postings.`);
+  } catch {
+    showToast("Opportunity scan failed. Check your configured public feeds.");
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<span class="button-pulse"></span> Scan opportunities <span class="button-arrow">↗</span>';
   }
 });
 
