@@ -18,7 +18,6 @@ const titles = {
   overview: { breadcrumb: "Overview", title: "Your technical edge,<br /><em>one day sharper.</em>" },
   workflow: { breadcrumb: "Agent workflow", title: "See the loop,<br /><em>step by step.</em>" },
   radar: { breadcrumb: "Technical radar", title: "Signals worth<br /><em>your attention.</em>" },
-  lab: { breadcrumb: "Career readiness", title: "Your readiness,<br /><em>made measurable.</em>" },
 };
 
 function showToast(message) {
@@ -120,39 +119,7 @@ function renderArticleDetail(index) {
 
 function applyDashboard(data) {
   if (!data) return;
-  if (data.readiness) {
-    const score = document.querySelector(".readiness-card .metric-value-row strong");
-    const note = document.querySelector(".readiness-card .metric-note");
-    if (score) score.textContent = data.readiness.overall;
-    if (note) note.innerHTML = `You’re <b>${100 - data.readiness.overall} points</b> from your ${data.readiness.target} target.`;
-    const reportScore = document.querySelector(".report-score > strong");
-    if (reportScore) reportScore.textContent = data.readiness.overall;
-    applyReadiness(data.readiness);
-  }
   renderArticleList(data.articles || []);
-}
-
-function applyReadiness(report) {
-  const score = Number(report.overall || 0);
-  const status = document.querySelector("#readiness-status");
-  const evidence = document.querySelector("#readiness-evidence");
-  const target = document.querySelector("#readiness-target");
-  const confidence = document.querySelector("#readiness-confidence");
-  if (status) status.textContent = score >= 80 ? "Strong trajectory" : score >= 60 ? "On track" : "Build next";
-  if (evidence) evidence.textContent = report.evidence_count ? `${report.evidence_count} assessed answers` : "Resume baseline";
-  if (target) target.textContent = report.target || "Target role pending";
-  if (confidence) confidence.textContent = `${Math.round((report.confidence || 0) * 100)}% evidence confidence`;
-
-  const bars = document.querySelector("#readiness-bars");
-  if (bars) {
-    bars.innerHTML = (report.dimensions || []).map((dimension) => `<div><span><b>${dimension.name}</b><em>${dimension.score}%</em></span><i><b style="width:${dimension.score}%"></b></i></div>`).join("");
-  }
-  const strengths = document.querySelector("#readiness-strengths");
-  if (strengths) strengths.innerHTML = (report.strengths || []).map((item) => `<li>${item.name} <b>${item.score}%</b></li>`).join("") || "<li>Complete an assessment to establish strengths.</li>";
-  const gaps = document.querySelector("#readiness-gaps");
-  if (gaps) gaps.innerHTML = (report.gaps || []).map((item) => `<li>${item.name} <b>${item.score}%</b></li>`).join("") || "<li>Complete an assessment to identify gaps.</li>";
-  const next = document.querySelector("#readiness-next");
-  if (next) next.textContent = report.next_action || "Complete the next article-based assessment.";
 }
 
 async function syncDashboard() {
@@ -206,27 +173,6 @@ runButton.addEventListener("click", async () => {
   }
 });
 
-document.querySelector("#challenge-button")?.addEventListener("click", async () => {
-  setView("lab");
-  try {
-    const articleId = articleData[state.selectedArticle]?.id || "";
-    const challenge = await apiRequest(`/api/challenges/next?article_id=${encodeURIComponent(articleId)}`);
-    state.backendOnline = true;
-    state.currentQuestion = challenge;
-    document.querySelector("#question-copy").textContent = challenge.prompt;
-    showToast("Challenge ready · answer the personalized prompt.");
-  } catch {
-    state.backendOnline = false;
-    showToast("Challenge ready · answer the article-based prompt.");
-  }
-});
-
-document.querySelector("#start-assessment")?.addEventListener("click", () => {
-  document.querySelector(".answer-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  document.querySelector(".answer-box")?.focus();
-  showToast("Assessment ready · answer the article-based question on the left.");
-});
-
 document.querySelector("#reference-button")?.addEventListener("click", () => {
   const article = articleData[state.selectedArticle];
   if (article?.reference) {
@@ -234,41 +180,6 @@ document.querySelector("#reference-button")?.addEventListener("click", () => {
     return;
   }
   showToast("No source URL is loaded yet. Run the daily scan first.");
-});
-
-document.querySelector("#submit-answer")?.addEventListener("click", async (event) => {
-  const answer = document.querySelector(".answer-box").textContent.trim();
-  if (!answer || answer === "Start typing your response…") {
-    showToast("Add a response first so the agent can evaluate your thinking.");
-    document.querySelector(".answer-box").focus();
-    return;
-  }
-  const submitButton = event.currentTarget;
-  submitButton.innerHTML = "Evaluating…";
-  submitButton.disabled = true;
-  if (state.backendOnline) {
-    try {
-      const result = await apiRequest("/api/assessments", { method: "POST", body: JSON.stringify({ answer, question: state.currentQuestion }) });
-      submitButton.innerHTML = 'Feedback ready <span>↗</span>';
-      const score = document.querySelector(".report-score > strong");
-      if (score) score.textContent = result.readiness.overall;
-      applyReadiness(result.readiness);
-      showToast(`Assessment complete · readiness is now ${result.readiness.overall}/100.`);
-      return;
-    } catch {
-      state.backendOnline = false;
-    }
-  }
-  window.setTimeout(() => {
-    submitButton.innerHTML = 'Feedback ready <span>↗</span>';
-    submitButton.disabled = true;
-    showToast("Assessment preview complete · connect the backend for scored feedback.");
-  }, 800);
-});
-
-document.querySelector(".answer-box")?.addEventListener("focus", (event) => {
-  const placeholder = event.currentTarget.querySelector("span");
-  if (placeholder) placeholder.remove();
 });
 
 syncDashboard();

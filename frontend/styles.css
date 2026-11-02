@@ -50,15 +50,8 @@ button:focus-visible, [contenteditable="true"]:focus-visible { outline: 2px soli
 /* Light workspace theme */
 html, body { background: #f4f7f6; }
 body { color: #182824; }
-.metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.metrics-grid { grid-template-columns: 1fr; }
 .radar-card.is-hidden { display: none; }
-.readiness-target { margin: -20px 0 24px; color: var(--muted-2); font-family: var(--mono); font-size: 8px; line-height: 1.6; }
-.readiness-target b { color: var(--teal); font-weight: 400; }
-.readiness-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; padding: 18px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
-.readiness-columns ul { display: grid; gap: 8px; margin: 9px 0 0; padding: 0; list-style: none; }
-.readiness-columns li { color: var(--muted); font-size: 9px; line-height: 1.45; }
-.readiness-columns li::before { margin-right: 6px; color: var(--teal); content: "•"; }
-.readiness-columns li b { float: right; color: var(--teal); font-family: var(--mono); font-size: 8px; font-weight: 400; }
 .sidebar { background: #fbfdfc; border-color: #dbe6e2; }
 .agent-card.active { border-color: #b8ded3; background: #e9f6f1; }
 .agent-card:hover { background: #eef5f2; }
