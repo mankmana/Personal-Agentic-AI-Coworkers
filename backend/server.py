@@ -322,17 +322,23 @@ def challenge_for_article(article: dict | None) -> dict:
         title = article["title"]
         summary = article.get("summary", "the main development described in the source")
         questions = [
-            {"question_id": f"challenge-{article['id']}-q1", "type": "understand", "prompt": f"In your own words, what problem or technical development does \"{title}\" describe, and why does it matter? Use at least one detail from the article.", "rubric": ["accurately explains the article", "uses a source detail", "connects the development to an engineering outcome"]},
-            {"question_id": f"challenge-{article['id']}-q2", "type": "apply", "prompt": f"Using the idea from \"{title}\" (which discusses {summary[:180]}), how would you apply it in a software support, SRE, or DevOps workflow? Name a concrete implementation or operational task.", "rubric": ["connects the article to a concrete implementation", "relates the idea to SRE, DevOps, or support work", "describes a practical next step"]},
-            {"question_id": f"challenge-{article['id']}-q3", "type": "evaluate", "prompt": f"What is one tradeoff, failure mode, or security concern in applying \"{title}\"? Explain how you would validate the approach with a test, metric, log, trace, or rollback plan.", "rubric": ["explains a tradeoff or failure mode", "includes validation or observability", "shows practical engineering judgment"]},
+            {"question_id": f"challenge-{article['id']}-q1", "type": "understand", "prompt": f"According to \"{title}\", what is the main technical development?", "options": [summary[:180], "A manual-only process that removes automation from the workflow.", "A user-interface redesign unrelated to engineering operations.", "A hardware-only capacity upgrade with no software change."], "correct_option": 0},
+            {"question_id": f"challenge-{article['id']}-q2", "type": "apply", "prompt": "Which SRE or DevOps use of this idea is the most practical?", "options": ["Adopt it everywhere immediately without testing or ownership.", "Run it in a bounded workflow with clear permissions, logs, alerts, and an operator fallback.", "Use it only as a presentation topic without connecting it to a system.", "Remove monitoring because the automation is expected to be reliable."], "correct_option": 1},
+            {"question_id": f"challenge-{article['id']}-q3", "type": "evaluate", "prompt": "What is the strongest way to validate an operational rollout of this idea?", "options": ["Measure only how quickly the first demo works.", "Deploy it directly to every production system and wait for user complaints.", "Use a staged test with success metrics, logs or traces, security checks, and a rollback path.", "Skip validation when the source article reports positive results."], "correct_option": 2},
         ]
         return {"question_id": f"challenge-{article['id']}", "competency": competency, "source_article_id": article["id"], "source_summary": summary, "source_title": title, "prompt": questions[0]["prompt"], "questions": questions, "question_count": len(questions)}
     questions = [
-        {"question_id": "article-challenge-001-q1", "type": "understand", "prompt": "What is the most important technical idea you learned recently, and what engineering problem does it address?", "rubric": ["accurately explains the idea", "states the problem", "uses a concrete detail"]},
-        {"question_id": "article-challenge-001-q2", "type": "apply", "prompt": "How would you apply that idea in a software support, SRE, or DevOps workflow? Name one concrete task.", "rubric": ["connects learning to implementation", "relates it to operations", "describes a next step"]},
-        {"question_id": "article-challenge-001-q3", "type": "evaluate", "prompt": "What could fail or create risk, and how would you validate the approach with a metric, test, log, trace, or rollback plan?", "rubric": ["explains a tradeoff", "includes validation", "shows practical understanding"]},
+        {"question_id": "article-challenge-001-q1", "type": "understand", "prompt": "What should you identify first when learning a new technical development?", "options": ["The problem it solves and the evidence supporting it.", "Only the product logo and launch date.", "A way to avoid reading the source material.", "A production deployment with no requirements."], "correct_option": 0},
+        {"question_id": "article-challenge-001-q2", "type": "apply", "prompt": "Which SRE or DevOps application is the safest starting point?", "options": ["A bounded workflow with permissions, monitoring, and human fallback.", "An unreviewed change to every production service.", "A workflow with no owner or alerting.", "A demo that cannot be measured."], "correct_option": 0},
+        {"question_id": "article-challenge-001-q3", "type": "evaluate", "prompt": "How should you validate the idea before broad adoption?", "options": ["Use a staged test with metrics, logs or traces, security checks, and rollback.", "Skip testing if the idea sounds promising.", "Measure only the number of tools involved.", "Wait for an incident before adding observability."], "correct_option": 0},
     ]
     return {"question_id": "article-challenge-001", "competency": "reliability_systems", "source_article_id": None, "source_title": "No grounded article loaded", "prompt": questions[0]["prompt"], "questions": questions, "question_count": len(questions)}
+
+
+def public_challenge(challenge: dict) -> dict:
+    public = dict(challenge)
+    public["questions"] = [{key: value for key, value in question.items() if key != "correct_option"} for question in challenge.get("questions", [])]
+    return public
 
 
 def next_challenge(article_id: str | None = None) -> dict:
@@ -365,7 +371,7 @@ def learning_stats(state: dict) -> dict:
     current_week = sum(1 for offset in range(7) if today - timedelta(days=offset) in completed_dates)
     previous_week = sum(1 for offset in range(7, 14) if today - timedelta(days=offset) in completed_dates)
     article = state["articles"][0] if state.get("articles") else None
-    challenge = challenge_for_article(article)
+    challenge = public_challenge(challenge_for_article(article))
     challenge["source_title"] = article["title"] if article else "No grounded article loaded"
     challenge["source"] = article["source"] if article else "DailyTechUpgradeAgent"
     today_activity = next((item for item in state.get("learning_activity", []) if item.get("date") == today.isoformat()), None)
@@ -380,7 +386,7 @@ def complete_learning_activity(state: dict, article_id: str | None, answers: lis
     articles = {article["id"]: article for article in state.get("articles", [])}
     challenge = challenge_for_article(articles.get(article_id))
     questions = challenge.get("questions", [])
-    results = [evaluate_answer(question, answer) for question, answer in zip(questions, answers)]
+    results = [{"selected_option": answer, "correct": answer == question.get("correct_option"), "score": 100 if answer == question.get("correct_option") else 0} for question, answer in zip(questions, answers)]
     score = round(sum(result["score"] for result in results) / len(results)) if results else 0
     state["learning_activity"].insert(0, {"date": today, "article_id": article_id, "activity": "daily_quiz_completed", "answers": answers, "results": results, "score": score, "completed_at": now_iso()})
     state["updated_at"] = now_iso()
@@ -486,13 +492,12 @@ class Handler(SimpleHTTPRequestHandler):
             payload = self.read_json()
             raw_answers = payload.get("answers")
             if not isinstance(raw_answers, list):
-                raw_answers = [payload.get("answer", "")]
-            answers = [clean_text(answer) for answer in raw_answers]
-            if len(answers) != 3 or any(len(answer) < 20 for answer in answers):
-                return self.send_json({"error": "Answer all 3 questions with at least 20 characters each."}, 400)
+                raw_answers = []
+            if len(raw_answers) != 3 or any(not isinstance(answer, int) or answer < 0 or answer > 3 for answer in raw_answers):
+                return self.send_json({"error": "Choose one option for all 3 questions."}, 400)
             with STATE_LOCK:
                 state = load_state()
-                learning = complete_learning_activity(state, payload.get("article_id"), answers)
+                learning = complete_learning_activity(state, payload.get("article_id"), raw_answers)
                 save_state(state)
             return self.send_json({"learning": learning})
         return self.send_json({"error": "Not found"}, 404)

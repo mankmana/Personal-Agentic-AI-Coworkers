@@ -182,7 +182,9 @@ function showLearningChallenge(learning) {
   state.learning = learning;
   const challenge = learning.challenge || {};
   document.querySelector("#challenge-source").textContent = `Grounded article · ${challenge.source_title || "today’s technical brief"} · ${challenge.source || "source"}`;
-  state.quiz = { questions: challenge.questions || [{ prompt: challenge.prompt || "Choose one technical idea from today’s brief and explain how you would apply it safely." }], answers: [], index: 0 };
+  const questions = challenge.questions || [{ prompt: challenge.prompt || "Choose one technical idea from today’s brief.", options: ["Option unavailable"] }];
+  const savedAnswers = (learning.quiz_results || []).map((result) => result.selected_option);
+  state.quiz = { questions, answers: questions.map((_, index) => savedAnswers[index] ?? null), index: 0 };
   const result = document.querySelector("#challenge-result");
   if (result) {
     result.hidden = !learning.completed_today;
@@ -190,7 +192,7 @@ function showLearningChallenge(learning) {
   }
   renderQuizQuestion();
   document.querySelector("#challenge-modal").hidden = false;
-  document.querySelector("#challenge-answer").focus();
+  document.querySelector("#challenge-options input")?.focus();
 }
 
 function renderQuizQuestion() {
@@ -200,21 +202,26 @@ function renderQuizQuestion() {
   const completed = Boolean(state.learning?.completed_today);
   const progress = document.querySelector("#challenge-progress");
   const prompt = document.querySelector("#challenge-prompt");
-  const answer = document.querySelector("#challenge-answer");
+  const options = document.querySelector("#challenge-options");
   const previous = document.querySelector("#quiz-previous");
   const next = document.querySelector("#complete-learning");
   if (progress) progress.textContent = `Question ${quiz.index + 1} of ${quiz.questions.length}`;
   if (prompt) prompt.textContent = question.prompt;
-  if (answer) {
-    answer.value = quiz.answers[quiz.index] || "";
-    answer.disabled = completed;
-    answer.placeholder = `Write at least 20 characters. Use details from the article, then explain your reasoning.`;
+  if (options) {
+    options.innerHTML = (question.options || []).map((option, index) => `<label class="quiz-option"><input type="radio" name="daily-quiz-option" value="${index}" ${quiz.answers[quiz.index] === index ? "checked" : ""} ${completed ? "disabled" : ""}><span class="quiz-option-marker">${String.fromCharCode(65 + index)}</span><span>${escapeHtml(option)}</span></label>`).join("");
+    options.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("change", () => { quiz.answers[quiz.index] = Number(input.value); });
+    });
   }
   if (previous) previous.disabled = completed || quiz.index === 0;
   if (next) {
     next.disabled = completed;
     next.innerHTML = quiz.index === quiz.questions.length - 1 ? "Submit quiz <span>↗</span>" : "Next question <span>↗</span>";
   }
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[character]));
 }
 
 async function syncDashboard() {
@@ -292,24 +299,21 @@ document.querySelectorAll("[data-close-challenge]").forEach((element) => {
 
 document.querySelector("#quiz-previous")?.addEventListener("click", () => {
   if (!state.quiz || state.quiz.index === 0) return;
-  state.quiz.answers[state.quiz.index] = document.querySelector("#challenge-answer").value.trim();
   state.quiz.index -= 1;
   renderQuizQuestion();
-  document.querySelector("#challenge-answer").focus();
+  document.querySelector("#challenge-options input")?.focus();
 });
 
 document.querySelector("#complete-learning")?.addEventListener("click", async (event) => {
   if (!state.quiz || state.learning?.completed_today) return;
-  const answer = document.querySelector("#challenge-answer").value.trim();
-  state.quiz.answers[state.quiz.index] = answer;
-  if (answer.length < 20) {
-    showToast("Write at least 20 characters for this question before continuing.");
+  if (state.quiz.answers[state.quiz.index] == null) {
+    showToast("Choose one answer before continuing.");
     return;
   }
   if (state.quiz.index < state.quiz.questions.length - 1) {
     state.quiz.index += 1;
     renderQuizQuestion();
-    document.querySelector("#challenge-answer").focus();
+    document.querySelector("#challenge-options input")?.focus();
     return;
   }
   const button = event.currentTarget;
