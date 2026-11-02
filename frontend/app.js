@@ -115,6 +115,11 @@ function renderArticleDetail(index) {
   document.querySelector("#detail-takeaways").innerHTML = article.takeaways.map((takeaway) => `<li>${takeaway}</li>`).join("");
   document.querySelector("#detail-action-text").textContent = article.action || article.why_it_matters || "Turn this insight into a small practice task.";
   document.querySelector("#detail-reference").textContent = grounded ? `Reference · ${article.source}` : "No source loaded";
+  const referenceLink = document.querySelector("#reference-link");
+  if (referenceLink) {
+    referenceLink.href = article.reference || "#";
+    referenceLink.hidden = !article.reference;
+  }
 }
 
 function applyDashboard(data) {
@@ -202,15 +207,6 @@ runButton.addEventListener("click", async () => {
     }, 1200);
     return;
   }
-});
-
-document.querySelector("#reference-button")?.addEventListener("click", () => {
-  const article = articleData[state.selectedArticle];
-  if (article?.reference) {
-    window.open(article.reference, "_blank", "noopener,noreferrer");
-    return;
-  }
-  showToast("No source URL is loaded yet. Run the daily scan first.");
 });
 
 document.querySelector("#learning-challenge-button")?.addEventListener("click", async () => {
