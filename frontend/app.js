@@ -29,9 +29,19 @@ function showToast(message) {
 }
 
 function setView(view) {
+  if (!titles[view]) return;
   state.currentView = view;
-  navItems.forEach((item) => item.classList.toggle("active", item.dataset.view === view));
-  panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === view));
+  navItems.forEach((item) => {
+    const active = item.dataset.view === view;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-current", active ? "page" : "false");
+  });
+  panels.forEach((panel) => {
+    const active = panel.dataset.panel === view;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+    panel.setAttribute("aria-hidden", String(!active));
+  });
   breadcrumb.textContent = titles[view].breadcrumb;
   pageTitle.innerHTML = titles[view].title;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -41,6 +51,7 @@ document.querySelectorAll("[data-view-target]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
 navItems.forEach((item) => item.addEventListener("click", () => setView(item.dataset.view)));
+setView(state.currentView);
 
 document.querySelectorAll(".agent-card").forEach((agent) => {
   agent.addEventListener("click", () => {

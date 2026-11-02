@@ -3,6 +3,7 @@
   --teal: #73e2c3; --purple: #bea6ff; --orange: #e9a979; --blue: #9cb7ff; --mono: "DM Mono", monospace; --sans: "Manrope", sans-serif;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { background: var(--bg); }
 body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
 button { color: inherit; font: inherit; cursor: pointer; }
