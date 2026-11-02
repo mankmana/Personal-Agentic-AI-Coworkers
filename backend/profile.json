@@ -1,6 +1,12 @@
 {
   "name": "Manali Mankad",
   "headline": "DevOps Engineer growing toward SRE / Platform Engineering",
+  "location_preferences": {
+    "primary": "San Francisco Bay Area",
+    "cities": ["San Francisco", "San Jose", "South San Francisco", "San Mateo", "Redwood City", "Palo Alto", "Mountain View", "Sunnyvale", "Santa Clara", "Menlo Park", "Oakland", "Berkeley", "Fremont", "Cupertino", "Milpitas"],
+    "remote_allowed": true,
+    "student_status": "M.S. Software Engineering in progress"
+  },
   "target_roles": [
     "Site Reliability Engineer",
     "DevOps Engineer",

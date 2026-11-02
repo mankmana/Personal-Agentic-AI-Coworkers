@@ -29,14 +29,26 @@ TARGET_ROLES = [
     "Production Support Engineer Intern",
 ]
 # These are public employer job-board endpoints, not authenticated candidate
-# accounts. They are a starting set and can be replaced/extended with JOB_FEEDS.
+# accounts. The default set prioritizes San Francisco / Bay Area openings from
+# a frontier lab plus infrastructure-focused startups. It can be replaced or
+# extended with JOB_FEEDS.
 DEFAULT_PUBLIC_ATS_SOURCES = [
+    "ashby://openai",
+    "ashby://gritt",
+    "ashby://datologyai",
+    "ashby://brainco",
+    "ashby://meshy",
+    "greenhouse://gallup",
     "lever://palantir",
-    "lever://anavationllc",
-    "lever://shopback-2",
-    "lever://csit",
 ]
 INTERNSHIP_TERMS = ("intern", "internship", "co-op", "co op")
+GRADUATE_TERMS = ("graduate", "master", "m.s.", "ms degree", "phd", "doctoral", "pursuing", "enrolled", "college or university")
+BAY_AREA_TERMS = (
+    "san francisco", "sf bay area", "san francisco bay area", "bay area", "south san francisco",
+    "san jose", "santa clara", "mountain view", "sunnyvale", "palo alto", "menlo park",
+    "redwood city", "san mateo", "oakland", "berkeley", "fremont", "cupertino", "milpitas", "hayward",
+)
+REMOTE_TERMS = ("remote", "remote-friendly", "work from anywhere", "distributed")
 ROLE_TERMS = {
     "Production Engineer Intern": ("production engineer", "production engineering"),
     "Customer Solutions Engineer Intern": ("customer solutions", "solutions engineer", "customer engineer"),
@@ -60,6 +72,26 @@ def clean_text(value: str) -> str:
 def contains_term(text: str, term: str) -> bool:
     """Match words instead of substrings such as intern inside internal."""
     return bool(re.search(rf"(?<![a-z0-9]){re.escape(term.lower())}(?![a-z0-9])", text.lower()))
+
+
+def location_fit(location: str, description: str) -> tuple[str, int]:
+    text = (location or description).lower()
+    if any(contains_term(text, term) for term in BAY_AREA_TERMS):
+        return "Bay Area", 100
+    if any(contains_term(text, term) for term in REMOTE_TERMS):
+        return "Remote", 60
+    return "Outside Bay Area", 0
+
+
+def graduate_fit(description: str) -> tuple[str, int]:
+    text = description.lower()
+    if any(contains_term(text, term) for term in GRADUATE_TERMS):
+        return "Graduate-student signal", 100
+    if contains_term(text, "student"):
+        return "Student signal", 65
+    if any(phrase in text for phrase in ("bachelor's or master's", "bs/ms", "undergraduate or graduate")):
+        return "Graduate-compatible", 90
+    return "Eligibility not stated", 35
 
 
 def default_state() -> dict:
@@ -113,7 +145,7 @@ def fetch_json(url: str, timeout: int = 12) -> dict | list:
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read(8_000_000).decode("utf-8", errors="replace"))
+        return json.loads(response.read(20_000_000).decode("utf-8", errors="replace"))
 
 
 def date_from_value(value) -> str:
@@ -139,14 +171,23 @@ def role_match(title: str, description: str) -> tuple[str, int, list[str]]:
     return best_role, score, best_hits[1]
 
 
-def normalize_job(title: str, link: str, description: str, source: str, published_at=None, source_type="rss_atom") -> dict | None:
+def normalize_job(title: str, link: str, description: str, source: str, published_at=None, source_type="rss_atom", location="", employment_type="") -> dict | None:
     title = clean_text(title)
     description = clean_text(description)
     if not title or not link:
         return None
     role, score, role_hits = role_match(title, description)
     text = f"{title} {description}".lower()
-    if not any(contains_term(text, term) for term in INTERNSHIP_TERMS) or not role_hits:
+    title_or_type = f"{title} {employment_type}".lower()
+    if not any(contains_term(title_or_type, term) for term in INTERNSHIP_TERMS) or not role_hits:
+        return None
+    location_label, location_score = location_fit(location, description)
+    if location_score == 0:
+        return None
+    graduate_label, graduate_score = graduate_fit(description)
+    # An explicitly undergraduate-only posting is not a useful match for a
+    # graduate student unless it also states a graduate-compatible path.
+    if "undergraduate only" in text and graduate_score < 90:
         return None
     matched_skills = [term for term in PROFILE_TERMS if contains_term(text, term)]
     job_id = f"job-{hashlib.sha1(f'{title}{link}'.encode()).hexdigest()[:14]}"
@@ -161,17 +202,23 @@ def normalize_job(title: str, link: str, description: str, source: str, publishe
         "match_score": score,
         "matched_skills": matched_skills,
         "role_signals": role_hits,
+        "location": location or location_label,
+        "location_match": location_label,
+        "location_score": location_score,
+        "graduate_student_fit": graduate_label,
+        "graduate_fit_score": graduate_score,
+        "employment_type": employment_type or "Internship",
         "grounded": True,
         "source_type": source_type,
         "published_at": date_from_value(published_at),
-        "why_match": f"Matches your {role} target through {', '.join(matched_skills[:4]) or 'your operations and software background'}.",
+        "why_match": f"{location_label} match · {graduate_label.lower()} · {role} through {', '.join(matched_skills[:4]) or 'your operations and software background'}.",
     }
 
 
 def fetch_feed(url: str) -> list[dict]:
     parsed = urllib.parse.urlparse(url)
     source_scheme = parsed.scheme.lower()
-    if source_scheme in {"greenhouse", "lever"}:
+    if source_scheme in {"greenhouse", "lever", "ashby"}:
         return fetch_public_ats(url)
     root = ET.fromstring(fetch_url(url))
     source = urllib.parse.urlparse(url).netloc.replace("www.", "")
@@ -186,7 +233,7 @@ def fetch_feed(url: str) -> list[dict]:
             for child in list(item):
                 if child.tag.rsplit("}", 1)[-1].lower() == "link":
                     link = child.attrib.get("href", "")
-        job = normalize_job(title, link, description, source, source_type="rss_atom")
+        job = normalize_job(title, link, description, source, source_type="rss_atom", location=description)
         if job:
             jobs.append(job)
     return jobs[:50]
@@ -214,6 +261,8 @@ def fetch_public_ats(source: str) -> list[dict]:
                 f"Greenhouse · {board}",
                 item.get("updated_at"),
                 source_type="greenhouse_public",
+                location=location,
+                employment_type="Internship",
             )
             if job:
                 jobs.append(job)
@@ -238,6 +287,38 @@ def fetch_public_ats(source: str) -> list[dict]:
                 f"Lever · {board}",
                 item.get("createdAt") or item.get("updatedAt"),
                 source_type="lever_public",
+                location=location,
+                employment_type=commitment,
+            )
+            if job:
+                jobs.append(job)
+    elif parsed.scheme.lower() == "ashby":
+        payload = fetch_json(f"https://api.ashbyhq.com/posting-api/job-board/{urllib.parse.quote(board)}")
+        for item in payload.get("jobs", []) if isinstance(payload, dict) else []:
+            secondary_locations = ", ".join(
+                str(location.get("location", ""))
+                for location in item.get("secondaryLocations", [])
+                if location.get("location")
+            )
+            location = ", ".join(part for part in (item.get("location", ""), secondary_locations) if part)
+            description = " | ".join(
+                part for part in (
+                    location,
+                    item.get("workplaceType", ""),
+                    item.get("department", ""),
+                    item.get("team", ""),
+                    item.get("descriptionPlain", ""),
+                ) if part
+            )
+            job = normalize_job(
+                item.get("title", ""),
+                item.get("jobUrl") or item.get("applyUrl") or "",
+                description,
+                f"Ashby · {board}",
+                item.get("publishedAt"),
+                source_type="ashby_public",
+                location=location,
+                employment_type=item.get("employmentType", ""),
             )
             if job:
                 jobs.append(job)
@@ -245,8 +326,8 @@ def fetch_public_ats(source: str) -> list[dict]:
 
 
 def is_relevant_job(job: dict) -> bool:
-    text = f"{job.get('title', '')} {job.get('description', '')}".lower()
-    return bool(job.get("role_signals")) and any(contains_term(text, term) for term in INTERNSHIP_TERMS)
+    title_or_type = f"{job.get('title', '')} {job.get('employment_type', '')}".lower()
+    return bool(job.get("role_signals")) and job.get("location_score", 0) > 0 and any(contains_term(title_or_type, term) for term in INTERNSHIP_TERMS)
 
 
 def scan(state: dict) -> dict:
@@ -272,7 +353,11 @@ def scan(state: dict) -> dict:
                     fetched += 1
         except Exception as error:
             failures.append({"url": url, "error": str(error)})
-    state["opportunities"] = sorted(state["opportunities"], key=lambda job: (job.get("match_score", 0), job.get("published_at", "")), reverse=True)
+    state["opportunities"] = sorted(
+        state["opportunities"],
+        key=lambda job: (job.get("location_score", 0), job.get("graduate_fit_score", 0), job.get("match_score", 0), job.get("published_at", "")),
+        reverse=True,
+    )
     run = {"id": f"opportunity-run-{len(state['runs']) + 1:03d}", "completed_at": now_iso(), "feeds": feeds, "fetched": fetched, "refreshed": refreshed, "failures": failures, "mode": "public_sources"}
     state["runs"].insert(0, run)
     state["updated_at"] = run["completed_at"]

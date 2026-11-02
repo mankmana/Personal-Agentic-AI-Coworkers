@@ -28,7 +28,7 @@ Then open [http://localhost:4173](http://localhost:4173).
 - Real learning momentum tracking: one grounded article challenge per day, completion history, and a calculated streak.
 - JSON-backed local state for runs, answers, and progress; replace with Postgres in production.
 - Opportunity scout with resume-aligned internship role matching, source links, preparation plans, coding exercises, interview scenarios, answer evaluation, and saved/applied progress.
-- Compliant job-source boundary: the opportunity scout reads public RSS/Atom feeds and public employer ATS boards. Use `lever://company-slug` or `greenhouse://board-slug` in `JOB_FEEDS`; if it is blank, a small curated set of public Lever boards is used. LinkedIn, Indeed, and Glassdoor should be connected only through an official API, export, or alert feed instead of bypassing access controls.
+- Compliant job-source boundary: the opportunity scout reads public RSS/Atom feeds and public employer ATS boards. Use `lever://company-slug`, `greenhouse://board-slug`, or `ashby://job-board-name` in `JOB_FEEDS`; if it is blank, a curated Bay Area-focused set is used. LinkedIn, Indeed, and Glassdoor should be connected only through an official API, export, or alert feed instead of bypassing access controls.
 
 ## API surface
 
@@ -60,7 +60,7 @@ curl -X POST http://localhost:4173/api/scan \
 
 The live source lanes are configurable in `.env`; start from `config/.env.example`. A scan fetches RSS/Atom feeds plus official Anthropic and Meta AI article indexes, then retrieves linked article-page text when available. Summaries are generated from that fetched text, using the OpenAI Responses API when configured or a local extractive fallback otherwise. The dashboard interleaves general AI/software signals with domain-specific SRE/DevOps signals so the daily brief is not dominated by one lane. The manual scan button remains available, and the backend also runs a startup scan when the last run is older than `SCAN_INTERVAL_HOURS` (24 by default), followed by a background daily check.
 
-The opportunity scout uses public job-board endpoints rather than account scraping. `lever://company-slug` reads Lever's public postings endpoint and `greenhouse://board-slug` reads Greenhouse's public board endpoint. Each matched opportunity retains the employer ATS URL, source type, published/updated date, and the excerpt used for matching. The opportunity scan runs on the same daily schedule and records source failures in the dashboard.
+The opportunity scout uses public job-board endpoints rather than account scraping. `lever://company-slug` reads Lever's public postings endpoint, `greenhouse://board-slug` reads Greenhouse's public board endpoint, and `ashby://job-board-name` reads Ashby's public postings endpoint. The default profile prioritizes San Francisco / Bay Area locations, keeps remote roles as a lower-priority fallback, and boosts postings that explicitly accept graduate students or candidates pursuing a master's/PhD. Each matched opportunity retains the employer ATS URL, source type, location fit, graduate-student fit, published/updated date, and the excerpt used for matching. The opportunity scan runs on the same daily schedule and records source failures in the dashboard.
 
 ## Next integration seam
 
