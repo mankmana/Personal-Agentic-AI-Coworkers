@@ -119,6 +119,12 @@ function renderArticleDetail(index) {
 
 function applyDashboard(data) {
   if (!data) return;
+  const scanNote = document.querySelector("#scan-note");
+  if (scanNote && data.last_scan) {
+    const completed = new Date(data.last_scan.completed_at);
+    const when = Number.isNaN(completed.getTime()) ? "recently" : completed.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    scanNote.innerHTML = `Last scan ${when} · <b>${data.last_scan.fetched || 0} new sources</b>`;
+  }
   renderArticleList(data.articles || []);
 }
 
