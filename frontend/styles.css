@@ -228,6 +228,14 @@ body { color: #16324b; font-size: 14px; }
 .quiz-option-marker { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid #9ebbd3; border-radius: 50%; color: #1f5f94; font-family: var(--mono); font-size: 11px; font-weight: 600; }
 .quiz-option:has(input:checked) .quiz-option-marker { border-color: #1f5f94; background: #1f5f94; color: #fff; }
 .quiz-option:has(input:disabled) { cursor: default; }
+.quiz-review { display: grid; gap: 10px; margin: 18px 0 8px; }
+.quiz-review-item { padding: 13px 15px; border: 1px solid #c6d5e2; border-left: 4px solid #7b96ad; border-radius: 7px; background: #f8fbfd; color: #294b67; }
+.quiz-review-item.is-correct { border-left-color: #1f5f94; background: #e8f2fa; }
+.quiz-review-item.is-incorrect { border-left-color: #9a5c20; background: #f7f1ea; }
+.quiz-review-item > div { display: flex; justify-content: space-between; gap: 12px; color: #173c5b; font-size: 13px; }
+.quiz-review-item.is-correct > div span { color: #1f5f94; }
+.quiz-review-item.is-incorrect > div span { color: #9a5c20; }
+.quiz-review-item p { margin: 7px 0 0; font-size: 13px; line-height: 1.45; }
 .challenge-actions { align-items: flex-end; }
 .quiz-buttons { display: flex; align-items: center; gap: 8px; }
 .quiz-buttons .outline-button, .quiz-buttons .dark-button { min-width: 112px; padding: 10px 12px; }

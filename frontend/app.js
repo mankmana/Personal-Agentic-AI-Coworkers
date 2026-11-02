@@ -191,6 +191,7 @@ function showLearningChallenge(learning) {
     result.textContent = learning.completed_today ? `Today’s quiz is already complete${learning.quiz_score == null ? "" : ` · score ${learning.quiz_score}/100`}.` : "";
   }
   renderQuizQuestion();
+  renderQuizReview(learning);
   document.querySelector("#challenge-modal").hidden = false;
   document.querySelector("#challenge-options input")?.focus();
 }
@@ -205,23 +206,42 @@ function renderQuizQuestion() {
   const options = document.querySelector("#challenge-options");
   const previous = document.querySelector("#quiz-previous");
   const next = document.querySelector("#complete-learning");
-  if (progress) progress.textContent = `Question ${quiz.index + 1} of ${quiz.questions.length}`;
-  if (prompt) prompt.textContent = question.prompt;
+  if (progress) { progress.textContent = `Question ${quiz.index + 1} of ${quiz.questions.length}`; progress.hidden = completed; }
+  if (prompt) { prompt.textContent = question.prompt; prompt.hidden = completed; }
   if (options) {
+    options.hidden = completed;
     options.innerHTML = (question.options || []).map((option, index) => `<label class="quiz-option"><input type="radio" name="daily-quiz-option" value="${index}" ${quiz.answers[quiz.index] === index ? "checked" : ""} ${completed ? "disabled" : ""}><span class="quiz-option-marker">${String.fromCharCode(65 + index)}</span><span>${escapeHtml(option)}</span></label>`).join("");
     options.querySelectorAll("input").forEach((input) => {
       input.addEventListener("change", () => { quiz.answers[quiz.index] = Number(input.value); });
     });
   }
-  if (previous) previous.disabled = completed || quiz.index === 0;
+  if (previous) { previous.disabled = completed || quiz.index === 0; previous.hidden = completed; }
   if (next) {
     next.disabled = completed;
+    next.hidden = completed;
     next.innerHTML = quiz.index === quiz.questions.length - 1 ? "Submit quiz <span>↗</span>" : "Next question <span>↗</span>";
   }
 }
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[character]));
+}
+
+function renderQuizReview(learning) {
+  const review = document.querySelector("#quiz-review");
+  if (!review) return;
+  if (!learning.completed_today || !state.quiz) {
+    review.hidden = true;
+    review.innerHTML = "";
+    return;
+  }
+  review.hidden = false;
+  review.innerHTML = (learning.quiz_results || []).map((result, index) => {
+    const question = state.quiz.questions[index] || {};
+    const selected = question.options?.[result.selected_option] || "No answer";
+    const correct = question.options?.[result.correct_option] || "Unavailable";
+    return `<div class="quiz-review-item ${result.correct ? "is-correct" : "is-incorrect"}><div><strong>Question ${index + 1}</strong><span>${result.correct ? "Correct" : "Incorrect"}</span></div><p>Your answer: ${escapeHtml(selected)}</p>${result.correct ? "" : `<p>Correct answer: ${escapeHtml(correct)}</p>`}</div>`;
+  }).join("");
 }
 
 async function syncDashboard() {
@@ -322,7 +342,8 @@ document.querySelector("#complete-learning")?.addEventListener("click", async (e
   try {
     const result = await apiRequest("/api/learning/complete", { method: "POST", body: JSON.stringify({ article_id: state.learning?.challenge?.source_article_id || null, answers: state.quiz.answers }) });
     applyLearning(result.learning);
-    document.querySelector("#challenge-modal").hidden = true;
+    renderQuizQuestion();
+    renderQuizReview(result.learning);
     showToast(`Quiz complete · ${result.learning.quiz_score}/100 · ${result.learning.streak_days}-day streak.`);
   } catch (error) {
     button.disabled = false;

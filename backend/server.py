@@ -371,11 +371,22 @@ def learning_stats(state: dict) -> dict:
     current_week = sum(1 for offset in range(7) if today - timedelta(days=offset) in completed_dates)
     previous_week = sum(1 for offset in range(7, 14) if today - timedelta(days=offset) in completed_dates)
     article = state["articles"][0] if state.get("articles") else None
-    challenge = public_challenge(challenge_for_article(article))
+    full_challenge = challenge_for_article(article)
+    challenge = public_challenge(full_challenge)
     challenge["source_title"] = article["title"] if article else "No grounded article loaded"
     challenge["source"] = article["source"] if article else "DailyTechUpgradeAgent"
     today_activity = next((item for item in state.get("learning_activity", []) if item.get("date") == today.isoformat()), None)
-    return {"streak_days": streak, "week_delta": current_week - previous_week, "completed_today": today in completed_dates, "completed_days": [today - timedelta(days=offset) in completed_dates for offset in range(6, -1, -1)], "challenge": challenge, "quiz_score": today_activity.get("score") if today_activity else None, "quiz_results": today_activity.get("results", []) if today_activity else [], "timezone": USER_TIMEZONE}
+    quiz_results = []
+    if today_activity:
+        for index, result in enumerate(today_activity.get("results", [])):
+            enriched = dict(result)
+            if index < len(full_challenge.get("questions", [])):
+                expected = full_challenge["questions"][index].get("correct_option")
+                enriched["correct_option"] = expected
+                enriched["correct"] = enriched.get("selected_option") == expected
+                enriched["score"] = 100 if enriched["correct"] else 0
+            quiz_results.append(enriched)
+    return {"streak_days": streak, "week_delta": current_week - previous_week, "completed_today": today in completed_dates, "completed_days": [today - timedelta(days=offset) in completed_dates for offset in range(6, -1, -1)], "challenge": challenge, "quiz_score": today_activity.get("score") if today_activity else None, "quiz_results": quiz_results, "timezone": USER_TIMEZONE}
 
 
 def complete_learning_activity(state: dict, article_id: str | None, answers: list[str]) -> dict:
@@ -386,7 +397,7 @@ def complete_learning_activity(state: dict, article_id: str | None, answers: lis
     articles = {article["id"]: article for article in state.get("articles", [])}
     challenge = challenge_for_article(articles.get(article_id))
     questions = challenge.get("questions", [])
-    results = [{"selected_option": answer, "correct": answer == question.get("correct_option"), "score": 100 if answer == question.get("correct_option") else 0} for question, answer in zip(questions, answers)]
+    results = [{"selected_option": answer, "correct_option": question.get("correct_option"), "correct": answer == question.get("correct_option"), "score": 100 if answer == question.get("correct_option") else 0} for question, answer in zip(questions, answers)]
     score = round(sum(result["score"] for result in results) / len(results)) if results else 0
     state["learning_activity"].insert(0, {"date": today, "article_id": article_id, "activity": "daily_quiz_completed", "answers": answers, "results": results, "score": score, "completed_at": now_iso()})
     state["updated_at"] = now_iso()
