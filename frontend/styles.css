@@ -223,3 +223,7 @@ body { color: #16324b; font-size: 14px; }
 .challenge-actions { align-items: flex-end; }
 .quiz-buttons { display: flex; align-items: center; gap: 8px; }
 .quiz-buttons .outline-button, .quiz-buttons .dark-button { min-width: 112px; padding: 10px 12px; }
+.radar-card { cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.radar-card:hover { border-color: #7fa9ca; box-shadow: 0 10px 28px rgba(31,95,148,.12); transform: translateY(-2px); }
+.radar-source-link { color: #1f5f94; font-size: 11px; text-decoration: none; white-space: nowrap; }
+.radar-source-link:hover { color: #174b78; text-decoration: underline; }

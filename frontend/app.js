@@ -126,6 +126,35 @@ function applyDashboard(data) {
   if (!data) return;
   if (data.learning) applyLearning(data.learning);
   renderArticleList(data.articles || []);
+  renderRadar(data.articles || []);
+}
+
+function renderRadar(articles) {
+  const radarArticles = articles.filter((article) => article.lane === "sre_devops_support").slice(0, 4);
+  document.querySelectorAll(".radar-card").forEach((card, index) => {
+    const article = radarArticles[index];
+    if (!article) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const tag = card.querySelector(".tag");
+    const score = card.querySelector(".radar-score");
+    const heading = card.querySelector("h3");
+    const summary = card.querySelector("p");
+    const sourceLink = card.querySelector(".radar-source-link");
+    if (tag) {
+      tag.className = `tag ${articleTagClass(article)}`;
+      tag.textContent = article.source || "LIVE SOURCE";
+    }
+    if (score) score.textContent = `${article.source_type === "rss_atom" ? "grounded" : "source"}`;
+    if (heading) heading.textContent = article.title;
+    if (summary) summary.textContent = article.summary;
+    if (sourceLink) {
+      sourceLink.href = article.reference || "#";
+      sourceLink.hidden = !article.reference;
+    }
+  });
 }
 
 function applyLearning(learning) {
@@ -210,6 +239,14 @@ document.querySelectorAll(".filter").forEach((filter) => {
       card.setAttribute("aria-hidden", String(!visible));
     });
     showToast(`${filter.textContent} signals are now in view.`);
+  });
+});
+
+document.querySelectorAll(".radar-card").forEach((card) => {
+  card.addEventListener("click", (event) => {
+    if (event.target.closest("a")) return;
+    const sourceLink = card.querySelector(".radar-source-link");
+    if (sourceLink?.href && sourceLink.getAttribute("href") !== "#") window.open(sourceLink.href, "_blank", "noopener,noreferrer");
   });
 });
 
