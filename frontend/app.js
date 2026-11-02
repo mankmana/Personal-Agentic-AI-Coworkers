@@ -127,12 +127,15 @@ function renderArticleList(articles) {
 function renderArticleDetail(index) {
   const article = articleData[index];
   if (!article) return;
+  const grounded = Boolean(article.grounded || article.reference);
+  const kicker = document.querySelector("#detail-kicker");
+  if (kicker) kicker.textContent = grounded ? "Selected article · live source summary" : "Selected article · demo summary";
   document.querySelector("#detail-heading").textContent = article.title;
   document.querySelector("#detail-meta").innerHTML = `<span class="tag ${article.tagClass}">${article.tag}</span><span>${article.source}</span><span>${article.readTime}</span>`;
   document.querySelector("#detail-summary").textContent = article.summary;
   document.querySelector("#detail-takeaways").innerHTML = article.takeaways.map((takeaway) => `<li>${takeaway}</li>`).join("");
   document.querySelector("#detail-action-text").textContent = article.action || article.why_it_matters || "Turn this insight into a small practice task.";
-  document.querySelector("#detail-reference").textContent = `Reference · ${article.source}`;
+  document.querySelector("#detail-reference").textContent = grounded ? `Reference · ${article.source}` : "Demo reference · not source-grounded";
 }
 
 renderArticleDetail(state.selectedArticle);
@@ -210,7 +213,12 @@ document.querySelector("#challenge-button")?.addEventListener("click", async () 
 });
 
 document.querySelector("#reference-button")?.addEventListener("click", () => {
-  showToast("Reference connector pending · this preview is using sample article content.");
+  const article = articleData[state.selectedArticle];
+  if (article?.reference) {
+    window.open(article.reference, "_blank", "noopener,noreferrer");
+    return;
+  }
+  showToast("This is seeded demo content. Run a live scan to attach a source URL.");
 });
 
 document.querySelector("#submit-answer")?.addEventListener("click", async (event) => {

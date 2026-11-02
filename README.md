@@ -19,10 +19,10 @@ Then open [http://localhost:4173](http://localhost:4173).
 
 ## What is included
 
-- Overview dashboard with readiness, momentum, opportunities, and daily top-three brief.
+- Overview dashboard with readiness, momentum, and a daily top-three technical brief. Relevant opportunities are intentionally reserved for `NextLevelPersonalCoachForCareerLevel` and are not part of this coworker.
 - Personalized profile derived from career-relevant resume evidence; contact details are intentionally excluded from the repo.
 - Two content lanes: general AI development and SRE / DevOps / software support.
-- RSS/Atom ingestion with live-source support and deterministic extractive fallback summaries.
+- RSS/Atom ingestion with live-source support and deterministic extractive fallback summaries. Live items retain their source URL; the six initial cards are clearly marked as seeded demo content until a scan replaces them.
 - Optional OpenAI Responses API adapter for model-backed summaries and evaluations when `OPENAI_API_KEY` is configured.
 - Career lab with generated technical challenges, answer evaluation, and persisted readiness updates.
 - JSON-backed local state for runs, answers, and progress; replace with Postgres in production.
@@ -48,7 +48,7 @@ curl -X POST http://localhost:4173/api/scan \
   -d '{"lanes":["general_ai_development","sre_devops_support"]}'
 ```
 
-The live RSS sources are configurable in `.env`; start from `config/.env.example`. Without network access or an API key, the service still returns the seeded demo articles and local fallback summaries.
+The live source lanes are configurable in `.env`; start from `config/.env.example`. The general lane currently watches official OpenAI News and Google AI feeds. The domain lane currently watches the AWS DevOps and Google Cloud management-tools feeds. A scan fetches titles, descriptions, publication signals, and source links; summaries are generated from that fetched text, using the OpenAI Responses API when configured or a local extractive fallback otherwise. Without a successful scan, the service returns seeded demo articles and labels them as not source-grounded.
 
 ## Next integration seam
 
@@ -56,7 +56,7 @@ The UI is ready to connect to a LangGraph or LangChain service. The natural grap
 
 `collect_sources → rank_relevance → summarize → assess_readiness → generate_challenge → recommend_plan`
 
-Suggested production adapters are RSS/Atom feeds and official blogs first, then job boards, GitHub, arXiv, and OpenAI Responses API tools. Keep citations attached to every source summary and store progress events so the readiness report can evolve over time.
+Suggested production adapters are RSS/Atom feeds and official blogs first, then research indexes, GitHub releases, and learning resources. Keep citations attached to every source summary and store progress events so the readiness report can evolve over time. Job and opportunity discovery belongs to the second coworker.
 
 ## Project structure
 

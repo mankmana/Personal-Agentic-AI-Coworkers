@@ -27,6 +27,14 @@ backend/server.py
 
 Both lanes use the same pipeline, but relevance and challenge generation are personalized against the profile in `backend/profile.json`.
 
+## Responsibility boundary
+
+`DailyTechUpgradeAgent` owns technical signals, article summaries, article-grounded challenges, and readiness evidence. It does not collect or rank jobs, internships, research roles, or entrepreneurial opportunities. Those opportunity workflows belong to `NextLevelPersonalCoachForCareerLevel`.
+
+## Source grounding
+
+Seed cards are demo fixtures and carry `source_type: seeded_demo` and `grounded: false`. A successful RSS/Atom ingestion creates `source_type: rss_atom`, retains the feed item's `reference` URL, and marks the item as grounded. The UI exposes this distinction so a demo summary is not presented as a cited article.
+
 ## Local state
 
 `backend/data/state.json` is created at runtime and intentionally ignored by Git. It stores scan runs, submitted answers, and readiness updates. A production deployment should replace it with a database and add authentication per user.

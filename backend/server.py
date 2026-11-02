@@ -65,6 +65,8 @@ SEED_ARTICLES = [
         "read_time": "7 min read",
         "published_at": "2026-11-01",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
     {
         "id": "platform-team-mindset-kubernetes",
@@ -78,6 +80,8 @@ SEED_ARTICLES = [
         "read_time": "5 min read",
         "published_at": "2026-11-01",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
     {
         "id": "model-call-production-incident",
@@ -91,6 +95,8 @@ SEED_ARTICLES = [
         "read_time": "9 min read",
         "published_at": "2026-11-01",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
     {
         "id": "sre-error-budgets-and-change",
@@ -104,6 +110,8 @@ SEED_ARTICLES = [
         "read_time": "6 min read",
         "published_at": "2026-10-31",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
     {
         "id": "evaluation-loops-agent-systems",
@@ -117,6 +125,8 @@ SEED_ARTICLES = [
         "read_time": "8 min read",
         "published_at": "2026-10-30",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
     {
         "id": "cloudwatch-incident-prioritization",
@@ -130,6 +140,8 @@ SEED_ARTICLES = [
         "read_time": "5 min read",
         "published_at": "2026-10-29",
         "summary_mode": "seeded_demo",
+        "source_type": "seeded_demo",
+        "grounded": False,
     },
 ]
 
@@ -155,6 +167,11 @@ def load_state() -> dict:
         state.setdefault("articles", copy.deepcopy(SEED_ARTICLES))
         state.setdefault("answers", [])
         state.setdefault("runs", [])
+        for article in state["articles"]:
+            if "grounded" not in article:
+                article["grounded"] = bool(article.get("reference"))
+            if "source_type" not in article:
+                article["source_type"] = "rss_atom" if article.get("reference") else "seeded_demo"
         return state
     except (OSError, json.JSONDecodeError):
         return default_state()
@@ -252,7 +269,7 @@ def fetch_feed(url: str, lane: str) -> list[dict]:
         source = urllib.parse.urlparse(url).netloc.replace("www.", "")
         article_id = hashlib.sha1(f"{title}{link}".encode()).hexdigest()[:14]
         summary = summarize_article(title, source, description)
-        items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], **summary})
+        items.append({"id": f"live-{article_id}", "lane": lane, "tag": "LIVE SOURCE", "source": source, "title": title, "reference": link, "read_time": "fresh signal", "published_at": now_iso()[:10], "source_type": "rss_atom", "grounded": True, **summary})
     return items[:8]
 
 
@@ -294,15 +311,6 @@ def readiness_report(state: dict) -> dict:
     return {"overall": weighted, "confidence": confidence, "confidence_label": "high" if confidence >= .75 else "medium", "target": profile["target_roles"][0], "dimensions": [{"key": item["key"], "name": item["label"], "score": scores[item["key"]], "weight": item["weight"]} for item in COMPETENCIES], "strengths": strengths, "gaps": gaps, "evidence_count": sum(evidence.values()), "next_action": "Turn one article insight into a small implementation experiment and document what you learned."}
 
 
-def opportunity_list() -> list[dict]:
-    return [
-        {"title": "Site Reliability Engineer", "company": "Cloud platform team", "fit": 92, "reason": "Matches Amazon on-call, CloudWatch, incident response, and cross-service debugging evidence."},
-        {"title": "Platform Engineer", "company": "Developer infrastructure team", "fit": 88, "reason": "Strong fit for automation, internal support, CI/CD, and the path toward paved platform roads."},
-        {"title": "AI Infrastructure Engineer", "company": "Applied AI startup", "fit": 76, "reason": "Connects your RAG project and operations experience; deepen evals, tracing, and distributed systems."},
-        {"title": "Cloud Operations Engineer", "company": "Enterprise systems team", "fit": 84, "reason": "Builds on regulated-system support, migrations, AWS, and production troubleshooting."},
-    ]
-
-
 def next_challenge(article_id: str | None = None) -> dict:
     articles = {article["id"]: article for article in load_state()["articles"]}
     article = articles.get(article_id) if article_id else next(iter(articles.values()), None)
@@ -330,7 +338,7 @@ def dashboard() -> dict:
     with STATE_LOCK:
         state = load_state()
     articles = state["articles"]
-    return {"profile": read_profile(), "readiness": readiness_report(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "opportunities": opportunity_list(), "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY)}
+    return {"profile": read_profile(), "readiness": readiness_report(state), "articles": articles[:6], "general_articles": [a for a in articles if a["lane"] == "general_ai_development"][:3], "domain_articles": [a for a in articles if a["lane"] == "sre_devops_support"][:3], "workflow": [{"id": "scout", "label": "Scout", "status": "complete"}, {"id": "synthesize", "label": "Synthesize", "status": "complete"}, {"id": "challenge", "label": "Challenge", "status": "current"}, {"id": "coach", "label": "Coach", "status": "queued"}], "last_scan": state["runs"][0] if state.get("runs") else None, "updated_at": state["updated_at"], "llm_enabled": bool(OPENAI_API_KEY), "grounding": {"live_source_articles": sum(1 for article in articles if article.get("grounded")), "seeded_demo_articles": sum(1 for article in articles if article.get("source_type") == "seeded_demo"), "note": "Only RSS/Atom items with a reference URL are source-grounded. Seeded demo cards are illustrative until replaced by a live scan."}}
 
 
 class Handler(SimpleHTTPRequestHandler):

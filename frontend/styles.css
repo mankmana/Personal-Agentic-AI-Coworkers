@@ -49,6 +49,7 @@ button:focus-visible, [contenteditable="true"]:focus-visible { outline: 2px soli
 /* Light workspace theme */
 html, body { background: #f4f7f6; }
 body { color: #182824; }
+.metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .sidebar { background: #fbfdfc; border-color: #dbe6e2; }
 .agent-card.active { border-color: #b8ded3; background: #e9f6f1; }
 .agent-card:hover { background: #eef5f2; }
